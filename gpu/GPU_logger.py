@@ -7,6 +7,7 @@ import datetime as dt
 from pynvml import *
 import psutil
 
+from GPU_email_sender import *
 
 def get_gpu_info():
     logger.trace("Getting GPU info")
@@ -366,6 +367,12 @@ def remove_old_data(timestamp, period_s=3600, db_path="gpu_history.db"):
 
 
 if __name__ == "__main__":
+    
+    SERVER_EMAIL = input("Please input your email Username: ")
+    SERVER_HOST = "smtp." + SERVER_EMAIL.split("@")[1]
+    SERVER_PASSPORT = input("Please input your email Passport: ")
+    SERVER_RECEIVERS = ["abc@gmail.com"]
+
     logger.add("log/GPU_logger_{time:YYYY-MM-DD}.log", rotation="00:00", retention="7 days", level="TRACE")
     logger.info("Starting GPU logger")
     DB_PATH = "data/gpu_history_leo.db"
@@ -377,6 +384,9 @@ if __name__ == "__main__":
     timestamp_last = dt.datetime.now(tz=dt.timezone.utc)
     AGGR_PERIOD = 30  # 聚合周期：30 秒
 
+    WARNING_PERIOD = 3600
+    TMP_PERIOD = 0
+
     while True:
         try:
             gpu_info = get_gpu_info()
@@ -387,6 +397,16 @@ if __name__ == "__main__":
                 aggregate_data(timestamp_last, period_s=AGGR_PERIOD, db_path=DB_PATH, db_realtime_path=DB_REALTIME_PATH)
                 remove_old_data(timestamp_last, period_s=3600, db_path=DB_REALTIME_PATH)
             time.sleep(1)
+
+            for info in gpu_info:
+                if info["gpu_utilization"] > 80 and info["used_memory"] / info["total_memory"] < 0.2:
+                    TMP_PERIOD += 1
+                else:
+                    TMP_PERIOD = 0
+                if TMP_PERIOD > WARNING_PERIOD:
+                    logger.info(f"GPU {info['gpu_index']} is under high load")
+                    send_email(SERVER_HOST, SERVER_EMAIL, SERVER_PASSPORT, SERVER_RECEIVERS, f"GPU {info['gpu_index']} may be incorrectly occupied, please check.")
+                    TMP_PERIOD = 0
 
         except KeyboardInterrupt:
             logger.info("Monitoring stopped")
