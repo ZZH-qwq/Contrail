@@ -8,7 +8,7 @@ from pynvml import *
 import psutil
 
 from GPU_email_sender import *
-
+import json
 def get_gpu_info():
     logger.trace("Getting GPU info")
     # 初始化 NVML
@@ -365,13 +365,39 @@ def remove_old_data(timestamp, period_s=3600, db_path="gpu_history.db"):
     conn.close()
     logger.trace("Remove old data completed")
 
+def calculate_average_usage(timestamp, gpu_index):
+    conn = sqlite3.connect(DB_REALTIME_PATH)
+    cursor = conn.cursor()
+
+    start_time = (timestamp - pd.Timedelta(seconds=600)).strftime("%Y-%m-%d %H:%M:%S")
+    end_time = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+    query = f"""
+        SELECT gpu_utilization, used_memory, total_memory
+        FROM gpu_info
+        WHERE gpu_index = {gpu_index} AND timestamp BETWEEN ? AND ?
+    """
+    result = pd.read_sql_query(query, conn, params=(start_time, end_time))
+
+    conn.close()
+
+    if len(result) == 0:
+        return None, None
+
+    avg_gpu_utilization = result["gpu_utilization"].mean()
+    avg_memory_usage = result["used_memory"].mean() / result["total_memory"].mean()
+
+    return avg_gpu_utilization, avg_memory_usage
 
 if __name__ == "__main__":
     
-    SERVER_EMAIL = input("Please input your email Username: ")
+    SERVER_EMAIL = json.load(open("email_config.json"))["server_email"]
     SERVER_HOST = "smtp." + SERVER_EMAIL.split("@")[1]
-    SERVER_PASSPORT = input("Please input your email Passport: ")
-    SERVER_RECEIVERS = ["abc@gmail.com"]
+    import argparse
+    parser = argparse.ArgumentParser(description="Get email passport.")
+    parser.add_argument("--passport", type=str, required=True, help="The passport of the server email.")
+    SERVER_PASSPORT = parser.parse_args().passport
+    SERVER_RECEIVERS = json.load(open("email_config.json"))["receivers"]
 
     logger.add("log/GPU_logger_{time:YYYY-MM-DD}.log", rotation="00:00", retention="7 days", level="TRACE")
     logger.info("Starting GPU logger")
@@ -384,9 +410,6 @@ if __name__ == "__main__":
     timestamp_last = dt.datetime.now(tz=dt.timezone.utc)
     AGGR_PERIOD = 30  # 聚合周期：30 秒
 
-    WARNING_PERIOD = 3600
-    TMP_PERIOD = 0
-
     while True:
         try:
             gpu_info = get_gpu_info()
@@ -396,17 +419,16 @@ if __name__ == "__main__":
                 timestamp_last = curr_time
                 aggregate_data(timestamp_last, period_s=AGGR_PERIOD, db_path=DB_PATH, db_realtime_path=DB_REALTIME_PATH)
                 remove_old_data(timestamp_last, period_s=3600, db_path=DB_REALTIME_PATH)
-            time.sleep(1)
 
             for info in gpu_info:
-                if info["gpu_utilization"] > 80 and info["used_memory"] / info["total_memory"] < 0.2:
-                    TMP_PERIOD += 1
-                else:
-                    TMP_PERIOD = 0
-                if TMP_PERIOD > WARNING_PERIOD:
-                    logger.info(f"GPU {info['gpu_index']} is under high load")
-                    send_email(SERVER_HOST, SERVER_EMAIL, SERVER_PASSPORT, SERVER_RECEIVERS, f"GPU {info['gpu_index']} may be incorrectly occupied, please check.")
-                    TMP_PERIOD = 0
+                avg_gpu_utilization, avg_memory_usage = calculate_average_usage(timestamp_last, info["gpu_index"])
+                if avg_gpu_utilization is not None and avg_memory_usage is not None:
+                    if avg_gpu_utilization > 80 and avg_memory_usage < 0.2:
+                        logger.warning(f"GPU {info['gpu_index']} is under high load")
+                        send_email(SERVER_HOST, SERVER_EMAIL, SERVER_PASSPORT, SERVER_RECEIVERS, f"GPU {info['gpu_index']} may be incorrectly occupied, please check.")
+            
+            time.sleep(1)
+
 
         except KeyboardInterrupt:
             logger.info("Monitoring stopped")
