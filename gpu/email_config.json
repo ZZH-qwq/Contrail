@@ -1,0 +1,9 @@
+{
+    "server_email": "your_email@example.com",
+    "receivers": [
+      "receiver1@example.com",
+      "receiver2@example.com",
+      "receiver3@example.com"
+    ]
+  }
+  
