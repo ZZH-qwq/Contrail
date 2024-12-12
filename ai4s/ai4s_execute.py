@@ -267,7 +267,7 @@ def execute(target_url):
         # 如果 .mf-notebook-list .ant-table-default .ant-table-placeholder 存在，则说明没有数据
         if driver.find_elements(By.CSS_SELECTOR, ".mf-notebook-list .ant-table-default .ant-table-placeholder"):
             logger.info("No data found")
-            return {"state": "failed"}
+            return {"state": "success"}
 
         else:
             data = {"state": "success"}
@@ -304,7 +304,11 @@ def job(target_url):
         if data["state"] == "success":
             with open("data/ai4s_data_last_success.json", "w") as file:
                 json.dump(data, file, ensure_ascii=False, indent=4)
-    logger.info(f"Job completed at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} with state: {data['state']}")
+        logger.info(
+            f"Job completed at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} with state: {data['state']}"
+        )
+    else:
+        logger.error(f"Job failed at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
 
 
 if __name__ == "__main__":
