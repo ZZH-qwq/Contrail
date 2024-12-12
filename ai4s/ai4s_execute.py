@@ -63,7 +63,11 @@ def handle_row(driver, row):
     logger.trace("Handling row")
     task = {}
 
+    assert driver.current_url.find("notebook/org") != -1, "Not in the correct page"
+    curr_tab = driver.current_window_handle
+
     try:
+
         task_name = row.find_element(By.CSS_SELECTOR, "td:nth-child(2)").text
         task["task_name"] = task_name
 
@@ -116,22 +120,24 @@ def handle_row(driver, row):
         ).text
         task["start_time"] = start_time
 
-        if len(driver.window_handles) > 1:
-            driver.close()
-
-        driver.switch_to.window(driver.window_handles[-1])
-        idx = -1
-        while driver.current_url.find("notebook/org") == -1 and idx > -1 * len(driver.window_handles):
-            idx -= 1
-            driver.switch_to.window(driver.window_handles[idx])
-
-        screenshot(driver)
-
-        return task
+        # driver.switch_to.window(driver.window_handles[-1])
+        # idx = -1
+        # while driver.current_url.find("notebook/org") == -1 and idx > -1 * len(driver.window_handles):
+        #     idx -= 1
+        #     driver.switch_to.window(driver.window_handles[idx])
 
     except Exception as e:
         logger.error(f"Error handling row: {e}")
         return None
+
+    finally:
+        if len(driver.window_handles) > 1 and driver.current_url.find("notebook/detail") != -1:
+            driver.close()
+        driver.switch_to.window(curr_tab)
+
+    screenshot(driver)
+
+    return task
 
 
 def close_row(driver, row):
@@ -261,15 +267,18 @@ def execute(target_url):
         # 如果 .mf-notebook-list .ant-table-default .ant-table-placeholder 存在，则说明没有数据
         if driver.find_elements(By.CSS_SELECTOR, ".mf-notebook-list .ant-table-default .ant-table-placeholder"):
             logger.info("No data found")
-            return {}
+            return {"state": "failed"}
 
         else:
-            data = {}
+            data = {"state": "success"}
             rows = driver.find_elements(By.CSS_SELECTOR, ".mf-notebook-list .ant-table-tbody .ant-table-row-level-0")
 
             for i, row in enumerate(rows):
                 task = handle_row(driver, row)
                 data[i] = task
+
+                if task is None or "data" not in task:
+                    data["state"] = "failed"
 
             # for row in rows:
             #     close_row(driver, row)
@@ -292,7 +301,10 @@ def job(target_url):
     if data is not None:
         with open("data/ai4s_data.json", "w") as file:
             json.dump(data, file, ensure_ascii=False, indent=4)
-    logger.info(f"Job completed at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
+        if data["state"] == "success":
+            with open("data/ai4s_data_last_success.json", "w") as file:
+                json.dump(data, file, ensure_ascii=False, indent=4)
+    logger.info(f"Job completed at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} with state: {data['state']}")
 
 
 if __name__ == "__main__":
@@ -312,7 +324,7 @@ if __name__ == "__main__":
 
         while True:
             schedule.run_pending()
-            time.sleep(20)
+            time.sleep(10)
     except KeyboardInterrupt:
         logger.info("Program exited")
         exit(0)

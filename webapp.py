@@ -15,7 +15,7 @@ parser.add_argument("--enable_name_dict", action="store_true", help="Enable name
 parser.add_argument("--add_device", type=str, nargs="+", help="List of devices to monitor.", default=["Leo", "Virgo"])
 args = parser.parse_args()
 
-logger.add("log/webapp_{time:YYYY-MM-DD}.log", rotation="00:00", encoding="utf-8", retention="7 days", level="TRACE")
+logger.add("log/webapp_{time:YYYY-MM-DD}.log", rotation="00:00", encoding="utf-8", retention="7 days", level="INFO")
 
 pages = {}
 
