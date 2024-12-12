@@ -69,22 +69,29 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
         start_time = end_time - dt.timedelta(seconds=DURATION)
         return start_time.strftime("%Y-%m-%d %H:%M:%S"), end_time.strftime("%Y-%m-%d %H:%M:%S")
 
-    # 最新数据
-    gpu_current_df = query_latest_gpu_info(DB_PATH)
+    start_time, end_time = get_time_range()
+
+    try:
+        # 最新数据
+        gpu_current_df = query_latest_gpu_info(DB_PATH, end_time)
+
+        # 获取数据
+        gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
+
+    except Exception as e:
+        st.error(f"查询数据时出现错误：{e}")
+        logger.error(f"Error querying realtime data: {e}")
+        return
+
     if not gpu_current_df.empty:
         current_timestamp = gpu_current_df["timestamp"].max()
         col2.write(f"更新于：{current_timestamp}")
-
-    start_time, end_time = get_time_range()
-
-    # 获取数据
-    gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
 
     # 如果没有数据，提示用户
     if gpu_utilization_df.empty:
         st.warning(f"过去 {DURATION} 秒内没有 GPU 数据记录：GPU 监控程序可能离线。")
     else:
-        status_panel(gpu_current_df, N_GPU=N_GPU, GMEM=GMEM)
+        panel_container = st.container()
 
         st.divider()
 
@@ -113,10 +120,27 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
             args=[f"selection_realtime_{hostname}"],
         )
 
-        if select == "**详细信息**":
-            gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
-            gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
+        try:
+            if select == "**详细信息**":
+                gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
+                gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
+            elif select == "**用户使用**":
+                user_gpu_df = query_user_gpu_realtime_usage(start_time, end_time, DB_PATH)
+                user_gpu_memory_df = query_user_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
+            elif select == "**汇总数据**":
+                gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
+                gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
 
+        except Exception as e:
+            st.error(f"查询数据时出现错误：{e}")
+            logger.error(f"Error querying realtime details: {e}")
+            return
+
+        finally:
+            with panel_container:
+                status_panel(gpu_current_df, N_GPU=N_GPU, GMEM=GMEM)
+
+        if select == "**详细信息**":
             # GPU 每台设备的利用率折线图
             st.subheader("使用率 %")
             chart = (
@@ -145,9 +169,6 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
             st.altair_chart(chart, use_container_width=True)
 
         elif select == "**用户使用**":
-            user_gpu_df = query_user_gpu_realtime_usage(start_time, end_time, DB_PATH)
-            user_gpu_memory_df = query_user_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
-
             if os.getenv("ENABLE_NAME_DICT", "0") == "1":
                 user_dict = dict_username(DB_PATH)
                 user_gpu_df["user"] = user_gpu_df["user"].apply(lambda x: user_dict.get(x, x))
@@ -181,9 +202,6 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
             st.altair_chart(chart, use_container_width=True)
 
         elif select == "**汇总数据**":
-            gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
-            gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
-
             # 总 GPU 使用率折线图
             st.subheader("总使用率 %")
             chart = (

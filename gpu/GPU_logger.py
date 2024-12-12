@@ -316,6 +316,12 @@ def aggregate_data(timestamp, period_s=30, db_path="gpu_history.db", db_realtime
             ),
         )
 
+    conn.commit()
+    conn.close()
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
     # 插入 GPU 用户使用历史记录
     for _, row in result_user.iterrows():
         cursor.execute(
@@ -356,8 +362,11 @@ def remove_old_data(timestamp, period_s=3600, db_path="gpu_history.db"):
 
     # 提交事务
     conn.commit()
+    conn.close()
 
     # VAACUUM
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
     cursor.execute("VACUUM")
     conn.commit()
 
