@@ -104,6 +104,10 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
         gpu_opacity = alt.Opacity("gpu_index:N").title("GPU")
         user_color = alt.Color("user:N").title("用户").scale(range=COLOR_SCHEME)
 
+        nearest = alt.selection_point(nearest=True, on="pointerover", fields=["timestamp"], empty=False)
+        when_near = alt.when(nearest)
+        gpu_tooltips = [alt.Tooltip(str(i), type="quantitative") for i in range(N_GPU)]
+
         if not_pc:
             gpu_color = gpu_color.legend(orient="bottom", titleOrient="left", columns=4)
             # gpu_opacity = gpu_opacity.legend(orient="bottom", titleOrient="left", columns=4)
@@ -143,29 +147,48 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
         if select == "**详细信息**":
             # GPU 每台设备的利用率折线图
             st.subheader("使用率 %")
-            chart = (
-                alt.Chart(gpu_utilization_df)
-                .mark_line()
-                .encode(
-                    gpu_color,
-                    axis_x,
-                    alt.Y("gpu_utilization:Q").title(None).scale(alt.Scale(domain=[0, 100])),
-                )
+
+            base = alt.Chart(gpu_utilization_df).encode(axis_x)
+
+            line = base.mark_line().encode(
+                gpu_color,
+                alt.Y("gpu_utilization:Q").title(None).scale(alt.Scale(domain=[0, 100])),
             )
+            points = line.mark_point().encode(opacity=when_near.then(alt.value(1)).otherwise(alt.value(0)))
+            rules = (
+                base.transform_pivot("gpu_index", value="gpu_utilization", groupby=["timestamp"])
+                .mark_rule()
+                .encode(
+                    opacity=when_near.then(alt.value(0.3)).otherwise(alt.value(0)),
+                    tooltip=gpu_tooltips,
+                )
+                .add_params(nearest)
+            )
+            chart = alt.layer(line, points, rules)
+
             st.altair_chart(chart, use_container_width=True)
 
             # GPU 内存使用情况
             st.subheader("显存用量 GB")
-            chart = (
-                alt.Chart(gpu_memory_df)
-                .transform_calculate(memory="datum.used_memory / 0x40000000")
-                .mark_line()
-                .encode(
-                    gpu_color,
-                    axis_x,
-                    alt.Y("memory:Q").title(None).scale(alt.Scale(domain=[0, GMEM])),
-                )
+
+            base = alt.Chart(gpu_memory_df).transform_calculate(memory="datum.used_memory / 0x40000000").encode(axis_x)
+
+            line = base.mark_line().encode(
+                gpu_color,
+                alt.Y("memory:Q").title(None).scale(alt.Scale(domain=[0, GMEM])),
             )
+            points = line.mark_point().encode(opacity=when_near.then(alt.value(1)).otherwise(alt.value(0)))
+            rules = (
+                base.transform_pivot("gpu_index", value="memory", groupby=["timestamp"])
+                .mark_rule()
+                .encode(
+                    opacity=when_near.then(alt.value(0.3)).otherwise(alt.value(0)),
+                    tooltip=gpu_tooltips,
+                )
+                .add_params(nearest)
+            )
+            chart = alt.layer(line, points, rules)
+
             st.altair_chart(chart, use_container_width=True)
 
         elif select == "**用户使用**":
