@@ -223,21 +223,23 @@ def execute(target_url):
     # 启用 Performance Logging
     chrome_options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
 
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-
-    driver.set_window_size(1920, 2333)
-
-    # 读取并修改Cookie的到期时间
-    with open(COOKIE_FILE, "r") as file:
-        cookies = json.loads(file.read())
-
-    # 修改Cookie的到期时间为当前时间 + 30 天
-    new_expiry_time = int(time.time()) + 86400 * 30
-    for cookie in cookies:
-        if "expiry" in cookie:
-            cookie["expires"] = new_expiry_time
-
     try:
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        time.sleep(1)
+
+        driver.set_window_size(1920, 2333)
+
+        # 读取并修改Cookie的到期时间
+        with open(COOKIE_FILE, "r") as file:
+            cookies = json.loads(file.read())
+
+        # 修改Cookie的到期时间为当前时间 + 30 天
+        new_expiry_time = int(time.time()) + 86400 * 30
+        for cookie in cookies:
+            if "expiry" in cookie:
+                cookie["expires"] = new_expiry_time
+
         # 打开目标网站以初始化session
         driver.get("http://aiplatform.ai4s.sjtu.edu.cn/")
         time.sleep(0.5)  # 等待页面加载
