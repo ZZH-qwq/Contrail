@@ -39,7 +39,7 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
 
     DURATION = config.get("DURATION", 30)
     N_GPU = config.get("N_GPU", 8)
-    GMEM = config.get("GMEM", 80)
+    GMEM = config.get("GMEM", 48)
     LIMIT = config.get("LIMIT", 1000)
 
     not_pc = not st.session_state.get("is_session_pc", True)

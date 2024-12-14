@@ -4,7 +4,7 @@ from realtime import webapp_realtime
 config = {
     "DURATION": 30,
     "N_GPU": 8,
-    "GMEM": 80,
+    "GMEM": 48,
     "LIMIT": 1000,
 }
 

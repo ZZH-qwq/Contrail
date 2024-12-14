@@ -227,11 +227,11 @@ def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db", config
     #     N_GPU = 8
     #     GMEM = 80
     N_GPU = config.get("N_GPU", 8)
-    GMEM = config.get("GMEM", 80)
+    GMEM = config.get("GMEM", 48)
 
     st.title(f"{hostname}: 历史信息")
 
-    # 默认查询时间范围：过去 1 天
+    # 默认查询时间范围：pc - 过去 1 天 / mobile - 过去 6 小时
     default_start_time, default_end_time, oldest_time, latest_time, latest_timestamp = get_default_time(DB_PATH)
 
     # st.write(st.session_state)
