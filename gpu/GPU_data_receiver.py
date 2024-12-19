@@ -74,6 +74,10 @@ def receive_gpu_info(server_ip, server_port, device="virgo"):
                             # print("数据包解析失败：", buffer.decode("utf-8"))
                             logger.error(f"Failed to decode JSON: {buffer.decode('utf-8')}")
                             buffer = b""
+                    except Exception as e:
+                        logger.error(f"An unexpected error occurred: {e}")
+                        buffer = b""
+
     except KeyboardInterrupt:
         logger.info("Server stopped")
     finally:

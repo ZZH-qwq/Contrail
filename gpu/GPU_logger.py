@@ -406,3 +406,6 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             logger.info("Monitoring stopped")
             break
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            time.sleep(1)
