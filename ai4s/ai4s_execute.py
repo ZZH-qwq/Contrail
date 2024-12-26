@@ -223,6 +223,7 @@ def execute(target_url):
     # 启用 Performance Logging
     chrome_options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
 
+    driver = None
     try:
         driver = webdriver.Chrome(service=service, options=chrome_options)
 
@@ -293,8 +294,9 @@ def execute(target_url):
 
     finally:
         logger.trace("Closing browser")
-        # 关闭浏览器
-        driver.quit()
+        if driver is not None:
+            # 关闭浏览器
+            driver.quit()
 
 
 def job(target_url):
