@@ -2,9 +2,13 @@ import pandas as pd
 from datetime import datetime
 import sqlite3
 import sys
+import os
 
-sys.path.append(".")
-from name_dict import NAME_DICT_FEE
+if os.getenv("ENABLE_NAME_DICT", "0") == "1":
+    sys.path.append(".")
+    from name_dict import NAME_DICT_FEE
+else:
+    NAME_DICT_FEE = {}
 
 
 def extract_and_save_to_db(file_path, db_path, table_name, if_exists="replace"):
@@ -30,7 +34,7 @@ def extract_and_save_to_db(file_path, db_path, table_name, if_exists="replace"):
     # result["资源使用人员"] = result["资源使用人员"].replace("--", "pfs")
 
     # 替换人员名称
-    result["资源使用人员"] = result["资源使用人员"].replace(NAME_DICT_FEE)
+    result["资源使用人员"] = result["资源使用人员"].apply(lambda x: NAME_DICT_FEE.get(x, x))
 
     # 将“扣费时间”转换为 SQLite DATETIME 格式
     # result["扣费时间"] = pd.to_datetime(result["扣费时间"]).dt.strftime("%Y-%m-%d %H:%M:%S")

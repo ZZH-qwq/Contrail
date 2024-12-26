@@ -318,6 +318,12 @@ def aggregate_data(timestamp, period_s=30, db_path="gpu_history.db", db_realtime
             ),
         )
 
+    conn.commit()
+    conn.close()
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
     # 插入 GPU 用户使用历史记录
     for _, row in result_user.iterrows():
         cursor.execute(
@@ -358,8 +364,11 @@ def remove_old_data(timestamp, period_s=3600, db_path="gpu_history.db"):
 
     # 提交事务
     conn.commit()
+    conn.close()
 
     # VAACUUM
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
     cursor.execute("VACUUM")
     conn.commit()
 
@@ -367,18 +376,21 @@ def remove_old_data(timestamp, period_s=3600, db_path="gpu_history.db"):
     logger.trace("Remove old data completed")
 
 if __name__ == "__main__":
-    
     import argparse
-    parser = argparse.ArgumentParser(description="Get fault detection.")
-    parser.add_argument("--fault_detection", type=bool, default=False, help="Whether to enable fault detection.")
-    if parser.parse_args().fault_detection:
+
+    parser = argparse.ArgumentParser(description="Monitor GPU usage of current device.")
+    parser.add_argument("--name", help="The device name to monitor.", default="leo")
+    parser.add_argument("--fault_detection", type=bool, help="Whether to enable fault detection.", default=False)
+    args = parser.parse_args()
+
+    if args.fault_detection:
         SERVER_PASSPORT = input("Please input your email passport: ")
         fault_detection_event = FaultDetectionEvent("email_config.json", SERVER_PASSPORT)
 
     logger.add("log/GPU_logger_{time:YYYY-MM-DD}.log", rotation="00:00", retention="7 days", level="TRACE")
     logger.info("Starting GPU logger")
-    DB_PATH = "data/gpu_history_leo.db"
-    DB_REALTIME_PATH = "data/gpu_info_leo.db"
+    DB_PATH = f"data/gpu_history_{args.name}.db"
+    DB_REALTIME_PATH = f"data/gpu_info_{args.name}.db"
 
     initialize_database(db_path=DB_PATH)
     initialize_database(db_path=DB_REALTIME_PATH)
@@ -404,3 +416,6 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             logger.info("Monitoring stopped")
             break
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            time.sleep(1)

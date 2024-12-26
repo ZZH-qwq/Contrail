@@ -7,17 +7,15 @@ import numpy as np
 
 from GPU_query_db import *
 
-N_GPU = 8  # GPU 数量
-GMEM = 80  # 显存：80 GB
 
-
-def gpu_chart_band(df, y_label):
+def gpu_chart_band(df, y_label, N_GPU=8):
     df["gpu_index"] = df["gpu_index"].astype(str)
     colors = px.colors.qualitative.Plotly
+    tot_colors = len(colors)
 
     fig = go.Figure()
     for i in range(N_GPU - 1, -1, -1):
-        color = ",".join([str(int(colors[i][j : j + 2], 16)) for j in (1, 3, 5)])
+        color = ",".join([str(int(colors[i % tot_colors][j : j + 2], 16)) for j in (1, 3, 5)])
         gpu_i = df[df["gpu_index"] == str(i)]
         fig.add_trace(
             go.Scatter(
@@ -66,11 +64,12 @@ def gpu_chart_band(df, y_label):
     st.plotly_chart(fig, use_container_width=True, key=f"{y_label}_band")
 
 
-def gpu_chart_user(user_usage_grouped, y_label, name_dict=None):
+def gpu_chart_user(user_usage_grouped, y_label, name_dict=None, N_GPU=8):
     # stack area chart for y_label
     # df["gpu_index"] = df["gpu_index"].astype(str)
     colors = px.colors.qualitative.Plotly
-    opacities = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    tot_colors = len(colors)
+    opacities = [0.3 + 0.7 * i / (N_GPU - 1) for i in range(N_GPU)]
 
     data, base = user_usage_grouped
 
@@ -89,8 +88,8 @@ def gpu_chart_user(user_usage_grouped, y_label, name_dict=None):
     )
 
     for i, (user, gpu_data) in enumerate(data.items()):
-        color = ",".join([str(int(colors[i][j : j + 2], 16)) for j in (1, 3, 5)])
-        username = name_dict[user] if name_dict is not None else user
+        color = ",".join([str(int(colors[i % tot_colors][j : j + 2], 16)) for j in (1, 3, 5)])
+        username = name_dict.get(user, user) if name_dict is not None else user
         fig.add_trace(
             go.Scatter(
                 name=username,
@@ -165,7 +164,7 @@ def gpu_chart_stack(df, y_label, y_max):
     st.plotly_chart(fig, use_container_width=True, key=f"{y_label}_stack")
 
 
-def gpu_cahrt_average(df, y_label, y_max, title, containers):
+def gpu_chart_average(df, y_label, y_max, title, containers, N_GPU=8):
     containers[0].metric(title, f"{df[y_label].sum():.2f}")
     fig = (
         alt.Chart(df)
@@ -193,11 +192,14 @@ def celi_to_quarter(time):
 
 
 def get_default_time(db_path):
-    # 默认查询时间范围：过去 1 天
+    # 默认查询时间范围：pc - 过去 1 天 / mobile - 过去 6 小时
     max_time = default_end_time = dt.datetime.now()
-    min_time = default_start_time = default_end_time - dt.timedelta(days=1)
+    if st.session_state.is_session_pc:
+        min_time = default_start_time = default_end_time - dt.timedelta(days=1)
+    else:
+        min_time = default_start_time = default_end_time - dt.timedelta(hours=6)
 
-    oldest_timestamp, latest_timestamp = query_min_max_timestamp(db_path)
+    oldest_timestamp, latest_timestamp = query_min_max_timestamp(db_path, max_time.strftime("%Y-%m-%d %H:%M"))
     if oldest_timestamp is not None:
         default_start_time = celi_to_quarter(max(default_start_time, oldest_timestamp.replace(tzinfo=None)))
         default_end_time = celi_to_quarter(min(default_end_time, latest_timestamp.replace(tzinfo=None)))
@@ -207,12 +209,29 @@ def get_default_time(db_path):
     return default_start_time, default_end_time, min_time, max_time, latest_timestamp
 
 
-def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db"):
+def store_value(key: str) -> None:
+    st.session_state["_" + key] = st.session_state[key]
+
+
+def load_value(key: str) -> None:
+    st.session_state[key] = st.session_state.get("_" + key, None)
+
+
+def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db", config={}):
     DB_PATH = db_path  # 数据库路径
+
+    # if config is not None:
+    #     N_GPU = config["N_GPU"]
+    #     GMEM = config["GMEM"]
+    # else:
+    #     N_GPU = 8
+    #     GMEM = 80
+    N_GPU = config.get("N_GPU", 8)
+    GMEM = config.get("GMEM", 48)
 
     st.title(f"{hostname}: 历史信息")
 
-    # 默认查询时间范围：过去 1 天
+    # 默认查询时间范围：pc - 过去 1 天 / mobile - 过去 6 小时
     default_start_time, default_end_time, oldest_time, latest_time, latest_timestamp = get_default_time(DB_PATH)
 
     # st.write(st.session_state)
@@ -224,6 +243,9 @@ def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db"):
         st.session_state["start_time"] = default_start_time.time()
         st.session_state["end_time"] = default_end_time.time()
         return
+
+    if st.session_state.get(f"_selection_history_{hostname}", None) is None:
+        st.session_state[f"_selection_history_{hostname}"] = "**详细信息**"
 
     # 日期范围选择
     col1, col2, reset = st.columns([5, 5, 2], vertical_alignment="bottom")
@@ -247,47 +269,76 @@ def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db"):
     else:
         if latest_timestamp is not None:
             st.write(f"数据更新于：{latest_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-            gpu_avg_fd = query_gpu_history_average_usage(start_time, end_time, DB_PATH)
+
+            # 更新令牌 用于区分 cache
+            if end_time > latest_timestamp.astimezone(dt.timezone.utc):
+                update_token = latest_timestamp.strftime("%Y-%m-%d %H:%M")
+            else:
+                update_token = None
+
+            try:
+                gpu_avg_fd = query_gpu_history_average_usage(start_time, end_time, DB_PATH, update_token)
+
+            except Exception as e:
+                st.error(f"查询数据时出现错误：{e}")
+                logger.error(f"Error querying history average: {e}")
+                return
 
             fig_u, usage, fig_m, mem = st.columns([3, 2, 3, 2], vertical_alignment="bottom")
-            gpu_cahrt_average(gpu_avg_fd, "avg_gpu_utilization", 100, "平均使用率 %", [usage, fig_u])
-            gpu_cahrt_average(gpu_avg_fd, "avg_used_memory", GMEM, "平均显存用量 GB", [mem, fig_m])
 
-        select = st.pills(
-            "信息选择",
-            ["**详细信息**", "**用户使用**", "**汇总数据**"],
-            default="**详细信息**",
-            label_visibility="collapsed",
-            selection_mode="single",
-        )
+            load_value(f"selection_history_{hostname}")
+            select = st.pills(
+                "信息选择",
+                ["**详细信息**", "**用户使用**", "**汇总数据**"],
+                label_visibility="collapsed",
+                selection_mode="single",
+                key=f"selection_history_{hostname}",
+                on_change=store_value,
+                args=[f"selection_history_{hostname}"],
+            )
 
-        if latest_timestamp is not None:
+            try:
+                if select == "**详细信息**":
+                    gpu_usage_df = query_gpu_history_usage(start_time, end_time, DB_PATH, update_token)
+                elif select == "**用户使用**":
+                    user_usage_grouped = query_gpu_user_history_usage(start_time, end_time, DB_PATH, update_token)
+                    user_total_df = query_gpu_user_history_total_usage(start_time, end_time, DB_PATH)
+                elif select == "**汇总数据**":
+                    gpu_usage_df = query_gpu_history_usage(start_time, end_time, DB_PATH, update_token)
+
+            except Exception as e:
+                st.error(f"查询数据时出现错误：{e}")
+                logger.error(f"Error querying history details: {e}")
+                return
+
+            finally:
+                gpu_chart_average(gpu_avg_fd, "avg_gpu_utilization", 100, "平均使用率 %", [usage, fig_u], N_GPU)
+                gpu_chart_average(gpu_avg_fd, "avg_used_memory", GMEM, "平均显存用量 GB", [mem, fig_m], N_GPU)
+
             if select == "**详细信息**":
-                gpu_usage_df = query_gpu_history_usage(start_time, end_time, DB_PATH, True)
-
                 st.subheader("使用率 %")
-                gpu_chart_band(gpu_usage_df, "gpu_utilization")
+                gpu_chart_band(gpu_usage_df, "gpu_utilization", N_GPU)
 
                 st.subheader("显存用量 GB")
-                gpu_chart_band(gpu_usage_df, "used_memory")
+                gpu_chart_band(gpu_usage_df, "used_memory", N_GPU)
             elif select == "**用户使用**":
-                user_usage_grouped = query_gpu_user_history_usage(start_time, end_time, DB_PATH, True)
-                name_dict = dict_username(DB_PATH)
+                if os.getenv("ENABLE_NAME_DICT", "0") == "1":
+                    name_dict = dict_username(DB_PATH)
+                else:
+                    name_dict = None
 
-                user_total_df = query_gpu_user_history_total_usage(start_time, end_time, DB_PATH)
-                user_total_df["user"] = user_total_df["user"].map(name_dict)
+                if name_dict is not None:
+                    user_total_df["user"] = user_total_df["user"].apply(lambda x: name_dict.get(x, x))
 
                 st.subheader("用户使用率 %")
-                gpu_chart_user(user_usage_grouped, "gpu_utilization", name_dict)
+                gpu_chart_user(user_usage_grouped, "gpu_utilization", name_dict, N_GPU)
 
                 st.dataframe(user_total_df)
 
                 st.subheader("用户显存用量 GB")
-                gpu_chart_user(user_usage_grouped, "used_memory", name_dict)
+                gpu_chart_user(user_usage_grouped, "used_memory", name_dict, N_GPU)
 
             elif select == "**汇总数据**":
-                gpu_usage_df = query_gpu_history_usage(start_time, end_time, DB_PATH)
-
                 st.subheader("总使用率 %")
                 gpu_chart_stack(gpu_usage_df, "gpu_utilization", 100 * N_GPU)
 

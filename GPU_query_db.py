@@ -1,12 +1,17 @@
 from loguru import logger
+import os
 import sqlite3
 import pandas as pd
 import datetime as dt
+import streamlit as st
 
-from name_dict import dict_username
+
+if os.getenv("ENABLE_NAME_DICT", "0") == "1":
+    from name_dict import dict_username
 
 
-def query_latest_gpu_info(db_path="gpu_history.db"):
+@st.cache_data
+def query_latest_gpu_info(db_path="gpu_history.db", query_tm=None):
     """
     查询最新的 GPU 状态信息（包括 GPU 使用率、内存使用情况等）。
 
@@ -43,7 +48,8 @@ def query_latest_gpu_info(db_path="gpu_history.db"):
     return data
 
 
-def query_min_max_timestamp(db_path="gpu_history.db"):
+@st.cache_data
+def query_min_max_timestamp(db_path="gpu_history.db", query_tm=None):
     """
     查询最早和最晚的 GPU 数据记录时间。
 
@@ -77,6 +83,7 @@ def query_min_max_timestamp(db_path="gpu_history.db"):
     return min_timestamp, max_timestamp
 
 
+@st.cache_data
 def query_gpu_realtime_usage(start_time, end_time, db_path="gpu_history.db"):
     """
     查询指定时间范围内的 GPU 使用情况。
@@ -109,6 +116,7 @@ def query_gpu_realtime_usage(start_time, end_time, db_path="gpu_history.db"):
     return data
 
 
+@st.cache_data
 def query_gpu_memory_realtime_usage(start_time, end_time, db_path="gpu_history.db"):
     """
     查询指定时间范围内的 GPU 内存使用情况。
@@ -141,6 +149,7 @@ def query_gpu_memory_realtime_usage(start_time, end_time, db_path="gpu_history.d
     return data
 
 
+@st.cache_data
 def query_user_gpu_realtime_usage(start_time, end_time, db_path="gpu_history.db"):
     """
     查询指定时间范围内的用户 GPU 使用情况。
@@ -173,6 +182,7 @@ def query_user_gpu_realtime_usage(start_time, end_time, db_path="gpu_history.db"
     return data
 
 
+@st.cache_data
 def query_user_gpu_memory_realtime_usage(start_time, end_time, db_path="gpu_history.db"):
     """
     查询指定时间范围内的用户 GPU 内存使用情况。
@@ -231,7 +241,8 @@ def get_period_sample_interval(start_time, end_time):
     return interval
 
 
-def query_gpu_history_usage(start_time, end_time, db_path="gpu_history.db", use_resample=False):
+@st.cache_data
+def query_gpu_history_usage(start_time, end_time, db_path="gpu_history.db", latest_tm=None):
     """
     查询指定时间范围内的 GPU 使用情况，并进行间隔采样以减小数据量。
 
@@ -307,7 +318,8 @@ def query_gpu_history_usage(start_time, end_time, db_path="gpu_history.db", use_
     return data
 
 
-def query_gpu_history_average_usage(start_time, end_time, db_path="gpu_history.db"):
+@st.cache_data
+def query_gpu_history_average_usage(start_time, end_time, db_path="gpu_history.db", latest_tm=None):
     """
     查询指定时间范围内的 GPU 平均使用情况。
 
@@ -342,7 +354,8 @@ def query_gpu_history_average_usage(start_time, end_time, db_path="gpu_history.d
     return data
 
 
-def query_gpu_user_history_list(start_time, end_time, db_path="gpu_history.db"):
+@st.cache_data
+def query_gpu_user_history_list(start_time, end_time, db_path="gpu_history.db", latest_tm=None):
     """
     查询指定时间范围内的用户列表。
 
@@ -370,7 +383,8 @@ def query_gpu_user_history_list(start_time, end_time, db_path="gpu_history.db"):
     return data
 
 
-def query_gpu_user_history_usage(start_time, end_time, db_path="gpu_history.db", use_resample=False):
+@st.cache_data
+def query_gpu_user_history_usage(start_time, end_time, db_path="gpu_history.db", latest_tm=None):
     """
     查询指定时间范围内的用户 GPU 使用情况，并进行间隔采样以减小数据量。
 
@@ -454,7 +468,8 @@ def query_gpu_user_history_usage(start_time, end_time, db_path="gpu_history.db",
     return user_gpu_history, pd.date_range(start=min_time, end=max_time, freq=f"{interval}s")
 
 
-def query_gpu_user_history_total_usage(start_time, end_time, db_path="gpu_history.db"):
+@st.cache_data
+def query_gpu_user_history_total_usage(start_time, end_time, db_path="gpu_history.db", latest_tm=None):
     logger.trace(f"Querying GPU user history total usage from {start_time} to {end_time} in {db_path}")
     """
     查询指定时间范围内的用户 GPU 总用量。

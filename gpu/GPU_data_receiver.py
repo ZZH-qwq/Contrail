@@ -6,8 +6,7 @@ from GPU_logger import *
 
 
 # 接收 GPU 信息的函数
-def receive_gpu_info(server_ip, server_port):
-    logger.add("log/GPU_data_receiver_{time:YYYY-MM-DD}.log", rotation="00:00", retention="7 days", level="TRACE")
+def receive_gpu_info(server_ip, server_port, device="virgo"):
     logger.info(f"Starting server at {server_ip}:{server_port}")
     # 初始化 Socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -17,8 +16,8 @@ def receive_gpu_info(server_ip, server_port):
 
     logger.info(f"Server started, listening at {server_ip}:{server_port}")
 
-    DB_PATH = "data/gpu_history_virgo.db"
-    DB_REALTIME_PATH = "data/gpu_info_virgo.db"
+    DB_PATH = f"data/gpu_history_{device}.db"
+    DB_REALTIME_PATH = f"data/gpu_info_{device}.db"
 
     initialize_database(db_path=DB_PATH)
     initialize_database(db_path=DB_REALTIME_PATH)
@@ -75,6 +74,10 @@ def receive_gpu_info(server_ip, server_port):
                             # print("数据包解析失败：", buffer.decode("utf-8"))
                             logger.error(f"Failed to decode JSON: {buffer.decode('utf-8')}")
                             buffer = b""
+                    except Exception as e:
+                        logger.error(f"An unexpected error occurred: {e}")
+                        buffer = b""
+
     except KeyboardInterrupt:
         logger.info("Server stopped")
     finally:
@@ -84,8 +87,15 @@ def receive_gpu_info(server_ip, server_port):
 
 # 主程序
 if __name__ == "__main__":
-    logger.info("Starting GPU data receiver")
-    SERVER_IP = "0.0.0.0"
-    SERVER_PORT = 3334
+    import argparse
 
-    receive_gpu_info(SERVER_IP, SERVER_PORT)
+    parser = argparse.ArgumentParser(description="Receive GPU information from the client.")
+    parser.add_argument("--ip", type=str, help="The IP address of the server.", default="0.0.0.0")
+    parser.add_argument("--port", type=int, help="The port of the server.", default=3334)
+    parser.add_argument("--name", type=str, help="The device name.", default="virgo")
+    args = parser.parse_args()
+
+    logger.add("log/GPU_data_receiver_{time:YYYY-MM-DD}.log", rotation="00:00", retention="7 days", level="TRACE")
+    logger.info("Starting GPU data receiver")
+
+    receive_gpu_info(args.ip, args.port, args.name)
