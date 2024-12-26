@@ -7,7 +7,9 @@ import datetime as dt
 from pynvml import *
 import psutil
 
-
+from GPU_email_sender import *
+import json
+from GPU_fault_detector import FaultDetectionEvent
 def get_gpu_info():
     logger.trace("Getting GPU info")
     # 初始化 NVML
@@ -373,13 +375,17 @@ def remove_old_data(timestamp, period_s=3600, db_path="gpu_history.db"):
     conn.close()
     logger.trace("Remove old data completed")
 
-
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Monitor GPU usage of current device.")
     parser.add_argument("--name", help="The device name to monitor.", default="leo")
+    parser.add_argument("--fault_detection", type=bool, help="Whether to enable fault detection.", default=False)
     args = parser.parse_args()
+
+    if args.fault_detection:
+        SERVER_PASSPORT = input("Please input your email passport: ")
+        fault_detection_event = FaultDetectionEvent("email_config.json", SERVER_PASSPORT)
 
     logger.add("log/GPU_logger_{time:YYYY-MM-DD}.log", rotation="00:00", retention="7 days", level="TRACE")
     logger.info("Starting GPU logger")
@@ -401,7 +407,11 @@ if __name__ == "__main__":
                 timestamp_last = curr_time
                 aggregate_data(timestamp_last, period_s=AGGR_PERIOD, db_path=DB_PATH, db_realtime_path=DB_REALTIME_PATH)
                 remove_old_data(timestamp_last, period_s=3600, db_path=DB_REALTIME_PATH)
+            if parser.parse_args().fault_detection:
+                for gpu in gpu_info:
+                    fault_detection_event.monitor(timestamp_last, gpu["gpu_index"], db_realtime_path=DB_REALTIME_PATH)     
             time.sleep(1)
+
 
         except KeyboardInterrupt:
             logger.info("Monitoring stopped")
