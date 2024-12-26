@@ -1,5 +1,6 @@
 {
-    "server_email": "your_email@example.com",
+    "smtp_port": 587,
+    "sender_email": "your_email@example.com",
     "receivers": [
       "receiver1@example.com",
       "receiver2@example.com",
