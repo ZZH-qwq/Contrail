@@ -2,11 +2,13 @@ import smtplib
 from email.mime.text import MIMEText
 import json
 from loguru import logger
+
+
 class EmailSender:
     def __init__(self, config_file="email_config.json", password=None):
         with open(config_file, "r") as f:
             self.config = json.load(f)
-        self.smtp_server = 'smtp.'+self.config["sender_email"].split('@')[1]
+        self.smtp_server = "smtp." + self.config["sender_email"].split("@")[1]
         self.smtp_port = self.config["smtp_port"]
         self.sender_email = self.config["sender_email"]
         self.password = password

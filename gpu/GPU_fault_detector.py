@@ -1,8 +1,12 @@
 from datetime import datetime
-from GPU_email_sender import EmailSender
 import sqlite3
 import pandas as pd
 from loguru import logger
+import sys
+
+sys.path.append(".")
+from email_sender import EmailSender
+
 
 class FaultDetectionEvent(EmailSender):
     def __init__(self, config_file="email_config.json", passport=None):
@@ -10,7 +14,7 @@ class FaultDetectionEvent(EmailSender):
         # 用于记录每个 GPU 每种故障状态
         self.gpu_fault_status = {
             "high_utilization_low_memory": {},
-            "low_utilization_high_memory": {}
+            "low_utilization_high_memory": {},
         }
 
     def monitor(self, timestamp_last, gpu_index, db_realtime_path):
@@ -26,7 +30,9 @@ class FaultDetectionEvent(EmailSender):
             # 高 GPU 使用率并且低内存使用率
             if gpu_utilization > 90 and memory_usage < 0.2:
                 if not self.gpu_fault_status["high_utilization_low_memory"].get(gpu_index, False):
-                    logger.warning(f"GPU {gpu_index} is under high load but low memory usage (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%).")
+                    logger.warning(
+                        f"GPU {gpu_index} is under high load but low memory usage (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%)."
+                    )
                     subject = "GPU Fault Detection: High Utilization and Low Memory Usage"
                     body = f"""
                     [Fault Detection Alert]
@@ -42,7 +48,9 @@ class FaultDetectionEvent(EmailSender):
             # 低 GPU 使用率并且高内存使用率
             if gpu_utilization < 10 and memory_usage > 0.9:
                 if not self.gpu_fault_status["low_utilization_high_memory"].get(gpu_index, False):
-                    logger.warning(f"GPU {gpu_index} is under low load but high memory usage (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%).")
+                    logger.warning(
+                        f"GPU {gpu_index} is under low load but high memory usage (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%)."
+                    )
                     subject = "GPU Fault Detection: Low Utilization and High Memory Usage"
                     body = f"""
                     [Fault Detection Alert]
@@ -59,13 +67,17 @@ class FaultDetectionEvent(EmailSender):
             if gpu_utilization < 90 or memory_usage > 0.2:
                 if self.gpu_fault_status["high_utilization_low_memory"].get(gpu_index, False):
                     # 解除高使用率低内存故障状态
-                    logger.info(f"GPU {gpu_index} high utilization issue resolved (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%).")
+                    logger.info(
+                        f"GPU {gpu_index} high utilization issue resolved (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%)."
+                    )
                     self.gpu_fault_status["high_utilization_low_memory"][gpu_index] = False  # 恢复为正常
 
             if gpu_utilization > 10 or memory_usage < 0.9:
                 if self.gpu_fault_status["low_utilization_high_memory"].get(gpu_index, False):
                     # 解除低使用率高内存故障状态
-                    logger.info(f"GPU {gpu_index} low utilization issue resolved (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%).")
+                    logger.info(
+                        f"GPU {gpu_index} low utilization issue resolved (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%)."
+                    )
                     self.gpu_fault_status["low_utilization_high_memory"][gpu_index] = False  # 恢复为正常
 
     def calculate_average_usage(self, timestamp, gpu_index, dp_realtime_path):

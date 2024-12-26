@@ -6,10 +6,13 @@ import datetime as dt
 
 from pynvml import *
 import psutil
+import sys
 
-from GPU_email_sender import *
-import json
+sys.path.append(".")
+from email_sender import *
 from GPU_fault_detector import FaultDetectionEvent
+
+
 def get_gpu_info():
     logger.trace("Getting GPU info")
     # 初始化 NVML
@@ -375,6 +378,7 @@ def remove_old_data(timestamp, period_s=3600, db_path="gpu_history.db"):
     conn.close()
     logger.trace("Remove old data completed")
 
+
 if __name__ == "__main__":
     import argparse
 
@@ -409,9 +413,8 @@ if __name__ == "__main__":
                 remove_old_data(timestamp_last, period_s=3600, db_path=DB_REALTIME_PATH)
             if parser.parse_args().fault_detection:
                 for gpu in gpu_info:
-                    fault_detection_event.monitor(timestamp_last, gpu["gpu_index"], db_realtime_path=DB_REALTIME_PATH)     
+                    fault_detection_event.monitor(timestamp_last, gpu["gpu_index"], db_realtime_path=DB_REALTIME_PATH)
             time.sleep(1)
-
 
         except KeyboardInterrupt:
             logger.info("Monitoring stopped")
