@@ -224,6 +224,9 @@ def initialize_database(db_path="gpu_history.db"):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_history_timestamp ON gpu_user_history (timestamp)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_history_gpu_index ON gpu_user_history (gpu_index)")
 
+    # 使用 WAL 模式
+    cursor.execute("PRAGMA journal_mode=WAL")
+
     conn.commit()
     conn.close()
     logger.trace("Initialize database completed")
