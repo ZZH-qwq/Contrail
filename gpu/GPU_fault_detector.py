@@ -172,8 +172,9 @@ class GpuFaultDetector:
         config_file: str = "email_config.json",
         password: Optional[str] = None,
         NGPU: int = 8,
+        GMEM: int = 48,
     ):
-        self.gpu_usage_manager = GpuUsageManager(NGPU)
+        self.gpu_usage_manager = GpuUsageManager(NGPU, GMEM)
 
         self.events = [
             GpuOverloadFaultEvent(self.gpu_usage_manager, config_file, password),
