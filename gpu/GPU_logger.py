@@ -6,14 +6,14 @@ import pandas as pd
 import datetime as dt
 from loguru import logger
 
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 from pynvml import *
 import psutil
 import sys
 
 sys.path.append(".")
-from email_sender import *
+from email_sender import EmailSender, EmailTemplate
 from GPU_fault_detector import GpuFaultDetector
 
 
@@ -427,6 +427,19 @@ def remove_old_data(
     logger.trace("Remove old data completed")
 
 
+ERROR_REPORT_TEMPLATE = EmailTemplate(
+    subject="GPU Logger: Uncaught Exception",
+    content="""
+    [GPU Logger Alert]
+    Time: ${time}
+    Hostname: ${hostname}
+    An uncaught exception occurred in the GPU logger.
+
+    Error: ${error}
+    """,
+)
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -441,6 +454,7 @@ if __name__ == "__main__":
     fault_detector = None
     if args.fault_detection:
         SERVER_PASSPORT = getpass.getpass("Please input your email passport: ")
+        sender = EmailSender(password=SERVER_PASSPORT)
         fault_detector = GpuFaultDetector(password=SERVER_PASSPORT, NGPU=args.ngpus, GMEM=args.gmem)
 
     logger.add(
@@ -489,4 +503,9 @@ if __name__ == "__main__":
             break
         except Exception as e:
             logger.error(f"An unexpected error occurred: {e}")
+
+            if args.fault_detection:
+                dyn_content = {"time": curr_time.strftime("%Y-%m-%d %H:%M:%S"), "hostname": args.name, "error": str(e)}
+                ERROR_REPORT_TEMPLATE(sender, **dyn_content)
+
             time.sleep(1)
