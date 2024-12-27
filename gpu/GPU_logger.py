@@ -1,3 +1,4 @@
+from typing import List, Dict, Tuple
 from loguru import logger
 import pandas as pd
 import sqlite3
@@ -13,7 +14,7 @@ from email_sender import *
 from GPU_fault_detector import FaultDetectionEvent
 
 
-def get_gpu_info():
+def get_gpu_info() -> List[Dict]:
     logger.trace("Getting GPU info")
     # 初始化 NVML
     nvmlInit()
@@ -92,6 +93,51 @@ def get_gpu_info():
     nvmlShutdown()
     logger.trace("Get GPU info completed")
     return gpu_info
+
+
+def process_gpu_info(gpu_info: List[Dict]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    将 gpu_info: List[Dict] 转换为 GPU 和进程的 dataframes
+
+    Args:
+        gpu_info (List[Dict]): GPU 信息
+
+    Returns:
+        Tuple[pd.DataFrame, pd.DataFrame]: GPU 和进程的 dataframes
+    """
+
+    logger.trace("Processing GPU info")
+    gpu_info_df = pd.DataFrame(gpu_info)
+    gpu_info_df = gpu_info_df.set_index("gpu_index")
+
+    # GPU 使用率 和 内存使用率
+    # gpu_utilization, memory_utilization, total_memory, used_memory, free_memory
+    gpu_df = gpu_info_df[["gpu_utilization", "memory_utilization", "total_memory", "used_memory", "free_memory"]]
+
+    # 进程信息 - 每个GPU的进程按用户分组
+    processes = []
+    for gpu in gpu_info:
+        user_data = {}
+        tot_processes = len(gpu["processes"])
+        for proc in gpu["processes"]:
+            if proc["user"] not in user_data:
+                user_data[proc["user"]] = {"used_memory": 0, "gpu_utilization": 0}
+            user_data[proc["user"]]["used_memory"] += proc["used_memory"]
+            user_data[proc["user"]]["gpu_utilization"] += gpu["gpu_utilization"] / tot_processes
+
+        for user, data in user_data.items():
+            processes.append(
+                {
+                    "gpu_index": gpu["gpu_index"],
+                    "user": user,
+                    "used_memory": data["used_memory"],
+                    "gpu_utilization": data["gpu_utilization"],
+                }
+            )
+
+    processes_df = pd.DataFrame(processes).set_index("gpu_index")
+
+    return gpu_df, processes_df
 
 
 def initialize_database(db_path="gpu_history.db"):
@@ -180,57 +226,39 @@ def initialize_database(db_path="gpu_history.db"):
     logger.trace("Initialize database completed")
 
 
-def update_database(gpu_info, timestamp, db_path="gpu_history.db"):
+def update_database(
+    gpu_dfs: Tuple[pd.DataFrame, pd.DataFrame],
+    timestamp: str,
+    db_path: str = "gpu_info.db",
+) -> None:
+    """
+    更新实时数据
+
+    Args:
+        gpu_dfs (Tuple[pd.DataFrame, pd.DataFrame]): GPU 和进程数据
+        timestamp (str): 时间戳
+        db_path (str, optional): 数据库路径. Defaults to "gpu_info.db".
+
+    Returns:
+        None
+    """
+
     logger.trace(f"Updating database at {db_path} with timestamp {timestamp}")
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+
+    gpu_df, proc_df = gpu_dfs
 
     try:
         # 启动事务
         conn.execute("BEGIN TRANSACTION")
 
         # 插入 GPU 信息
-        for gpu in gpu_info:
-            cursor.execute(
-                """
-                INSERT INTO gpu_info (gpu_index, name, gpu_utilization, memory_utilization, total_memory, used_memory, free_memory, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    gpu["gpu_index"],
-                    gpu["name"],
-                    gpu["gpu_utilization"],
-                    gpu["memory_utilization"],
-                    gpu["total_memory"],
-                    gpu["used_memory"],
-                    gpu["free_memory"],
-                    timestamp,
-                ),
-            )
+        gpu_df["timestamp"] = timestamp
+        gpu_df.to_sql("gpu_info", conn, if_exists="append", index=True)
 
-            # 插入 GPU 用户使用信息
-            user_data = {}
-            tot_processes = len(gpu["processes"])
-            for proc in gpu["processes"]:
-                if proc["user"] not in user_data:
-                    user_data[proc["user"]] = {"used_memory": 0, "gpu_utilization": 0}
-                user_data[proc["user"]]["used_memory"] += proc["used_memory"]
-                user_data[proc["user"]]["gpu_utilization"] += gpu["gpu_utilization"] / tot_processes
-
-            for user, data in user_data.items():
-                cursor.execute(
-                    """
-                    INSERT INTO gpu_user_info (gpu_index, user, used_memory, gpu_utilization, timestamp)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (
-                        gpu["gpu_index"],
-                        user,
-                        data["used_memory"],
-                        data["gpu_utilization"],
-                        timestamp,
-                    ),
-                )
+        # 插入 GPU 用户使用信息
+        proc_df["timestamp"] = timestamp
+        proc_df.to_sql("gpu_user_info", conn, if_exists="append", index=True)
 
         # 提交事务
         conn.commit()
@@ -245,11 +273,26 @@ def update_database(gpu_info, timestamp, db_path="gpu_history.db"):
     logger.trace("Update database completed")
 
 
-# 合并timestamp前period秒内的数据，提取平均值、最大值和最小值
-def aggregate_data(timestamp, period_s=30, db_path="gpu_history.db", db_realtime_path="gpu_info.db"):
+def aggregate_data(
+    timestamp: dt.datetime,
+    period_s: int = 30,
+    db_path: str = "gpu_history.db",
+    db_realtime_path: str = "gpu_info.db",
+) -> None:
+    """
+    合并timestamp前period秒内的数据，提取平均值、最大值和最小值，并将其插入到历史记录中
+
+    Args:
+        timestamp (dt.datetime): 时间戳
+        period_s (int, optional): 聚合周期. Defaults to 30.
+        db_path (str, optional): 数据库路径. Defaults to "gpu_history.db".
+        db_realtime_path (str, optional): 实时数据数据库路径. Defaults to "gpu_info.db".
+
+    Returns:
+        None
+    """
     logger.trace(f"Aggregating data at {timestamp} with period {period_s} seconds")
     conn = sqlite3.connect(db_realtime_path)
-    cursor = conn.cursor()
 
     # 查询时间范围
     start_time = (timestamp - pd.Timedelta(seconds=period_s)).strftime("%Y-%m-%d %H:%M:%S")
@@ -285,6 +328,15 @@ def aggregate_data(timestamp, period_s=30, db_path="gpu_history.db", db_realtime
         .reset_index()
     )
 
+    result.rename(
+        columns={
+            "used_memory_avg": "used_memory",
+            "gpu_utilization_avg": "gpu_utilization",
+        },
+        inplace=True,
+    )
+    result["timestamp"] = end_time
+
     # 计算平均值、第一四分位数和第三四分位数
     result_user = (
         result_user.groupby(["gpu_index", "user"])
@@ -299,57 +351,26 @@ def aggregate_data(timestamp, period_s=30, db_path="gpu_history.db", db_realtime
         .reset_index()
     )
 
+    result_user.rename(
+        columns={
+            "used_memory_avg": "used_memory",
+            "gpu_utilization_avg": "gpu_utilization",
+        },
+        inplace=True,
+    )
+    result_user["timestamp"] = end_time
+
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
 
     # 插入 GPU 历史记录
-    for _, row in result.iterrows():
-        cursor.execute(
-            """
-            INSERT INTO gpu_history (gpu_index, gpu_utilization, gpu_utilization_max, gpu_utilization_min, used_memory, used_memory_max, used_memory_min, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                row["gpu_index"],
-                row["gpu_utilization_avg"],
-                row["gpu_utilization_max"],
-                row["gpu_utilization_min"],
-                row["used_memory_avg"],
-                row["used_memory_max"],
-                row["used_memory_min"],
-                end_time,
-            ),
-        )
-
-    conn.commit()
-    conn.close()
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    result.to_sql("gpu_history", conn, if_exists="append", index=False)
 
     # 插入 GPU 用户使用历史记录
-    for _, row in result_user.iterrows():
-        cursor.execute(
-            """
-            INSERT INTO gpu_user_history (gpu_index, user, used_memory, used_memory_max, used_memory_min, gpu_utilization, gpu_utilization_max, gpu_utilization_min, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                row["gpu_index"],
-                row["user"],
-                row["used_memory_avg"],
-                row["used_memory_max"],
-                row["used_memory_min"],
-                row["gpu_utilization_avg"],
-                row["gpu_utilization_max"],
-                row["gpu_utilization_min"],
-                end_time,
-            ),
-        )
+    result_user.to_sql("gpu_user_history", conn, if_exists="append", index=False)
 
-    # 提交事务
     conn.commit()
     conn.close()
+
     logger.trace("Aggregate data completed")
 
 
@@ -406,14 +427,19 @@ if __name__ == "__main__":
         try:
             gpu_info = get_gpu_info()
             curr_time = dt.datetime.now(tz=dt.timezone.utc)
-            update_database(gpu_info, curr_time.strftime("%Y-%m-%d %H:%M:%S"), db_path=DB_REALTIME_PATH)
+
+            gpu_dfs = process_gpu_info(gpu_info)
+
+            update_database(gpu_dfs, curr_time.strftime("%Y-%m-%d %H:%M:%S"), db_path=DB_REALTIME_PATH)
             if (curr_time - timestamp_last).seconds >= AGGR_PERIOD - 1:
                 timestamp_last = curr_time
                 aggregate_data(timestamp_last, period_s=AGGR_PERIOD, db_path=DB_PATH, db_realtime_path=DB_REALTIME_PATH)
                 remove_old_data(timestamp_last, period_s=3600, db_path=DB_REALTIME_PATH)
-            if parser.parse_args().fault_detection:
+
+            if args.fault_detection:
                 for gpu in gpu_info:
                     fault_detection_event.monitor(timestamp_last, gpu["gpu_index"], db_realtime_path=DB_REALTIME_PATH)
+
             time.sleep(1)
 
         except KeyboardInterrupt:
