@@ -2,6 +2,7 @@ import smtplib
 from email.mime.text import MIMEText
 import json
 import datetime
+import getpass
 from string import Template
 from typing import Optional, Callable
 from loguru import logger
@@ -94,7 +95,7 @@ class BasicEvent:
 if __name__ == "__main__":
     import time
 
-    passport = input("Please enter your email password: ")
+    passport = getpass.getpass("Please enter your email password: ")
     email_sender = EmailSender(password=passport)
 
     template = EmailTemplate(

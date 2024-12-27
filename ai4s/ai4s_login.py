@@ -10,6 +10,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.options import Options
 
 import argparse
+import getpass
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--url", type=str, required=True, help="The URL of the target website.")
@@ -53,7 +54,7 @@ try:
     captcha_field = driver.find_element(By.CSS_SELECTOR, "#input-login-captcha")
 
     username = input("Please input the username: ")
-    password = input("Please input the password: ")
+    password = getpass.getpass("Please input the password: ")
 
     if username != "":
         # 保存验证码图片
