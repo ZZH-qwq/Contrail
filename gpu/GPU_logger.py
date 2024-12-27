@@ -1,9 +1,11 @@
-from typing import List, Dict, Tuple
-from loguru import logger
-import pandas as pd
 import sqlite3
 import time
+import getpass
+import pandas as pd
 import datetime as dt
+from loguru import logger
+
+from typing import List, Dict, Tuple
 
 from pynvml import *
 import psutil
@@ -11,7 +13,7 @@ import sys
 
 sys.path.append(".")
 from email_sender import *
-from GPU_fault_detector import FaultDetectionEvent
+from GPU_fault_detector import GpuFaultDetector
 
 
 def get_gpu_info() -> List[Dict]:
@@ -278,6 +280,7 @@ def aggregate_data(
     period_s: int = 30,
     db_path: str = "gpu_history.db",
     db_realtime_path: str = "gpu_info.db",
+    fault_detector: Optional[GpuFaultDetector] = None,
 ) -> None:
     """
     合并timestamp前period秒内的数据，提取平均值、最大值和最小值，并将其插入到历史记录中
@@ -287,6 +290,7 @@ def aggregate_data(
         period_s (int, optional): 聚合周期. Defaults to 30.
         db_path (str, optional): 数据库路径. Defaults to "gpu_history.db".
         db_realtime_path (str, optional): 实时数据数据库路径. Defaults to "gpu_info.db".
+        fault_detector (Optional[GpuFaultDetector], optional): GPU 事件检测器. Defaults to None.
 
     Returns:
         None
@@ -360,6 +364,10 @@ def aggregate_data(
     )
     result_user["timestamp"] = end_time
 
+    # 检测 GPU 故障
+    if fault_detector:
+        fault_detector.update(result)
+
     conn = sqlite3.connect(db_path)
 
     # 插入 GPU 历史记录
@@ -405,12 +413,14 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Monitor GPU usage of current device.")
     parser.add_argument("--name", help="The device name to monitor.", default="leo")
+    parser.add_argument("--ngpus", type=int, help="The number of GPUs to monitor.", default=8)
     parser.add_argument("--fault_detection", type=bool, help="Whether to enable fault detection.", default=False)
     args = parser.parse_args()
 
+    fault_detector = None
     if args.fault_detection:
-        SERVER_PASSPORT = input("Please input your email passport: ")
-        fault_detection_event = FaultDetectionEvent("email_config.json", SERVER_PASSPORT)
+        SERVER_PASSPORT = getpass.getpass("Please input your email passport: ")
+        fault_detector = GpuFaultDetector(password=SERVER_PASSPORT, NGPU=args.ngpus)
 
     logger.add("log/GPU_logger_{time:YYYY-MM-DD}.log", rotation="00:00", retention="7 days", level="TRACE")
     logger.info("Starting GPU logger")
@@ -433,12 +443,14 @@ if __name__ == "__main__":
             update_database(gpu_dfs, curr_time.strftime("%Y-%m-%d %H:%M:%S"), db_path=DB_REALTIME_PATH)
             if (curr_time - timestamp_last).seconds >= AGGR_PERIOD - 1:
                 timestamp_last = curr_time
-                aggregate_data(timestamp_last, period_s=AGGR_PERIOD, db_path=DB_PATH, db_realtime_path=DB_REALTIME_PATH)
+                aggregate_data(
+                    timestamp_last,
+                    period_s=AGGR_PERIOD,
+                    db_path=DB_PATH,
+                    db_realtime_path=DB_REALTIME_PATH,
+                    fault_detector=fault_detector,
+                )
                 remove_old_data(timestamp_last, period_s=3600, db_path=DB_REALTIME_PATH)
-
-            if args.fault_detection:
-                for gpu in gpu_info:
-                    fault_detection_event.monitor(timestamp_last, gpu["gpu_index"], db_realtime_path=DB_REALTIME_PATH)
 
             time.sleep(1)
 

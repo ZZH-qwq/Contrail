@@ -1,116 +1,187 @@
-from datetime import datetime
-import sqlite3
 import pandas as pd
+import numpy as np
 from loguru import logger
+
+from abc import abstractmethod
+from typing import Optional, List, Tuple
+
 import sys
 
 sys.path.append(".")
-from email_sender import EmailSender
+from email_sender import EmailSender, EmailTemplate, BasicEvent
 
 
-class FaultDetectionEvent(EmailSender):
-    def __init__(self, config_file="email_config.json", passport=None):
-        super().__init__(config_file, passport)
-        # 用于记录每个 GPU 每种故障状态
-        self.gpu_fault_status = {
-            "high_utilization_low_memory": {},
-            "low_utilization_high_memory": {},
+class GpuUsageManager:
+    def __init__(
+        self,
+        NGPU: int = 8,
+        GMEM: int = 48,
+        history_length: int = 20,
+    ):
+        self.NGPU = NGPU
+        self.GMEM = GMEM
+        self.HISTORY_LENGTH = history_length  # 10 minutes history length
+        self.util_history = np.zeros((NGPU, self.HISTORY_LENGTH))
+        self.mem_history = np.zeros((NGPU, self.HISTORY_LENGTH))
+        self.gpu_utils = np.zeros(NGPU)
+        self.gpu_mems = np.zeros(NGPU)
+
+    def update_usage(self, gpu_df: pd.DataFrame) -> None:
+        """
+        更新 GPU 使用情况数据并计算平均值
+        """
+        gpu_utils = gpu_df["gpu_utilization"].values
+        gpu_mems = gpu_df["used_memory"].values / 0x40000000 / self.GMEM
+
+        # 更新历史记录
+        self.util_history = np.roll(self.util_history, shift=1, axis=1)
+        self.mem_history = np.roll(self.mem_history, shift=1, axis=1)
+
+        self.util_history[:, 0] = gpu_utils
+        self.mem_history[:, 0] = gpu_mems
+
+        # 计算 GPU 使用情况的平均值
+        self.gpu_utils = np.mean(self.util_history, axis=1)
+        self.gpu_mems = np.mean(self.mem_history, axis=1)
+
+    def query_usage(self, gpu_idx: List[int]) -> Tuple[List[float], List[float]]:
+        """
+        查询出现问题的 GPU 使用情况
+        """
+        return self.gpu_utils[gpu_idx], self.gpu_mems[gpu_idx]
+
+
+class GpuFaultEvent(BasicEvent):
+    def __init__(
+        self,
+        mail_subject: str,
+        mail_content: str,
+        gpu_usage_manager: GpuUsageManager,
+        config_file: str = "email_config.json",
+        password: Optional[str] = None,
+    ):
+        self.gpu_usage_manager = gpu_usage_manager
+        self.fault_idxs = []
+        self.fault_utils = []
+        self.fault_mems = []
+
+        self.mail_subject = mail_subject
+        self.mail_content = mail_content
+
+        self.sender = EmailSender(config_file, password)
+        self.template = EmailTemplate(subject=self.mail_subject, content=self.mail_content)
+
+        get_dyn_content = lambda: {
+            "time": self.event_start.strftime("%Y-%m-%d %H:%M:%S"),
+            "util": self.fault_utils,
+            "mem": self.fault_mems,
+            "gpu_index": self.fault_idxs,
         }
 
-    def monitor(self, timestamp_last, gpu_index, db_realtime_path):
+        self.active_action = lambda: self.template(
+            self.sender,
+            **get_dyn_content(),
+        )
+
+        super().__init__(init_status=False, active_action=self.active_action)
+
+    def update(self) -> None:
+        # 判断是否触发事件
+        self.fault_idxs = self._check_fault_gpus()
+        self.fault_utils, self.fault_mems = self.gpu_usage_manager.query_usage(self.fault_idxs)
+
+        is_fault = len(self.fault_idxs) > 0
+        super().update(is_fault)
+
+    @abstractmethod
+    def _check_fault_gpus(self) -> List[int]:
+        return []
+
+
+class GpuOverloadFaultEvent(GpuFaultEvent):
+    def __init__(
+        self,
+        gpu_usage_manager: GpuUsageManager,
+        config_file: str = "email_config.json",
+        password: Optional[str] = None,
+    ):
+        mail_subject = "GPU Fault Detection: High Utilization and Low Memory Usage"
+        mail_content = """
+        [Fault Detection Alert]
+        Time: ${time}
+        GPU Utilization: ${util}%
+        Memory Usage: ${mem}%
+
+        Please check the GPU ${gpu_index} immediately.
         """
-        监控 GPU 使用情况，并在出现问题时发送邮件，确保每个问题只会发一次邮件
-        :param timestamp_last: 上次检查的时间戳
-        :param gpu_index: GPU 索引
-        :param db_realtime_path: 数据库路径
+
+        super().__init__(mail_subject, mail_content, gpu_usage_manager, config_file, password)
+
+    def _check_fault_gpus(self) -> List[int]:
+        """检测 GPU 是否过载"""
+
+        falut_gpus = []
+
+        for i in range(self.gpu_usage_manager.NGPU):
+            if self.gpu_usage_manager.gpu_utils[i] > 90 and self.gpu_usage_manager.gpu_mems[i] < 0.2:
+                falut_gpus.append(i)
+
+        if len(falut_gpus) > 0:
+            logger.warning(f"Detected GPU overload faults: {falut_gpus}")
+
+        return falut_gpus
+
+
+class GpuUnderutilizedFaultEvent(GpuFaultEvent):
+    def __init__(
+        self,
+        gpu_usage_manager: GpuUsageManager,
+        config_file: str = "email_config.json",
+        password: Optional[str] = None,
+    ):
+        mail_subject = "GPU Fault Detection: Low Utilization and High Memory Usage"
+        mail_content = """
+        [Fault Detection Alert]
+        Time: ${time}
+        GPU Utilization: ${util}%
+        Memory Usage: ${mem}%
+
+        Please check the GPU ${gpu_index} immediately.
         """
-        gpu_utilization, memory_usage = self.calculate_average_usage(timestamp_last, gpu_index, db_realtime_path)
 
-        if gpu_utilization is not None and memory_usage is not None:
-            # 高 GPU 使用率并且低内存使用率
-            if gpu_utilization > 90 and memory_usage < 0.2:
-                if not self.gpu_fault_status["high_utilization_low_memory"].get(gpu_index, False):
-                    logger.warning(
-                        f"GPU {gpu_index} is under high load but low memory usage (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%)."
-                    )
-                    subject = "GPU Fault Detection: High Utilization and Low Memory Usage"
-                    body = f"""
-                    [Fault Detection Alert]
-                    Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                    GPU Utilization: {gpu_utilization}% (Critical)
-                    Memory Usage: {memory_usage * 100}% (Critical)
-                    
-                    Please check the GPU {gpu_index} immediately.
-                    """
-                    self.send_email(subject, body)
-                    self.gpu_fault_status["high_utilization_low_memory"][gpu_index] = True  # 将该 GPU 状态标记为故障
+        super().__init__(mail_subject, mail_content, gpu_usage_manager, config_file, password)
 
-            # 低 GPU 使用率并且高内存使用率
-            if gpu_utilization < 10 and memory_usage > 0.9:
-                if not self.gpu_fault_status["low_utilization_high_memory"].get(gpu_index, False):
-                    logger.warning(
-                        f"GPU {gpu_index} is under low load but high memory usage (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%)."
-                    )
-                    subject = "GPU Fault Detection: Low Utilization and High Memory Usage"
-                    body = f"""
-                    [Fault Detection Alert]
-                    Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                    GPU Utilization: {gpu_utilization}% (Critical)
-                    Memory Usage: {memory_usage * 100}% (Critical)
-                    
-                    Please check the GPU {gpu_index} immediately.
-                    """
-                    self.send_email(subject, body)
-                    self.gpu_fault_status["low_utilization_high_memory"][gpu_index] = True  # 将该 GPU 状态标记为故障
+    def _check_fault_gpus(self) -> List[int]:
+        """检测 GPU 是否异常低负载"""
 
-            # 如果 GPU 使用情况恢复正常，且当前 GPU 处于故障状态
-            if gpu_utilization < 90 or memory_usage > 0.2:
-                if self.gpu_fault_status["high_utilization_low_memory"].get(gpu_index, False):
-                    # 解除高使用率低内存故障状态
-                    logger.info(
-                        f"GPU {gpu_index} high utilization issue resolved (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%)."
-                    )
-                    self.gpu_fault_status["high_utilization_low_memory"][gpu_index] = False  # 恢复为正常
+        falut_gpus = []
 
-            if gpu_utilization > 10 or memory_usage < 0.9:
-                if self.gpu_fault_status["low_utilization_high_memory"].get(gpu_index, False):
-                    # 解除低使用率高内存故障状态
-                    logger.info(
-                        f"GPU {gpu_index} low utilization issue resolved (GPU Utilization: {gpu_utilization}%, Memory Usage: {memory_usage * 100}%)."
-                    )
-                    self.gpu_fault_status["low_utilization_high_memory"][gpu_index] = False  # 恢复为正常
+        for i in range(self.gpu_usage_manager.NGPU):
+            if self.gpu_usage_manager.gpu_utils[i] < 10 and self.gpu_usage_manager.gpu_mems[i] > 0.9:
+                falut_gpus.append(i)
 
-    def calculate_average_usage(self, timestamp, gpu_index, dp_realtime_path):
-        """
-        计算指定时间段内的 GPU 使用率和内存使用率
-        :param timestamp: 当前时间戳
-        :param gpu_index: GPU 索引
-        :param dp_realtime_path: 数据库路径
-        :return: 平均 GPU 使用率, 平均内存使用率
-        """
-        try:
-            conn = sqlite3.connect(dp_realtime_path)
-            cursor = conn.cursor()
+        if len(falut_gpus) > 0:
+            logger.warning(f"Detected GPU underutilized faults: {falut_gpus}")
 
-            start_time = (timestamp - pd.Timedelta(seconds=600)).strftime("%Y-%m-%d %H:%M:%S")
-            end_time = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        return falut_gpus
 
-            query = f"""
-                SELECT gpu_utilization, used_memory, total_memory
-                FROM gpu_info
-                WHERE gpu_index = ? AND timestamp BETWEEN ? AND ?
-            """
-            result = pd.read_sql_query(query, conn, params=(gpu_index, start_time, end_time))
 
-            conn.close()
+class GpuFaultDetector:
+    def __init__(
+        self,
+        config_file: str = "email_config.json",
+        password: Optional[str] = None,
+        NGPU: int = 8,
+    ):
+        self.gpu_usage_manager = GpuUsageManager(NGPU)
 
-            if len(result) == 0:
-                return None, None
+        self.events = [
+            GpuOverloadFaultEvent(self.gpu_usage_manager, config_file, password),
+            GpuUnderutilizedFaultEvent(self.gpu_usage_manager, config_file, password),
+        ]
 
-            avg_gpu_utilization = result["gpu_utilization"].mean()
-            avg_memory_usage = result["used_memory"].mean() / result["total_memory"].mean()
+    def update(self, gpu_df: pd.DataFrame) -> None:
+        self.gpu_usage_manager.update_usage(gpu_df)
 
-            return avg_gpu_utilization, avg_memory_usage
-        except Exception as e:
-            logger.error(f"Error while fetching GPU usage data: {e}")
-            return None, None
+        for event in self.events:
+            event.update()
