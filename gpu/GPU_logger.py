@@ -1,6 +1,7 @@
 import sqlite3
 import time
 import getpass
+import schedule
 import pandas as pd
 import datetime as dt
 from loguru import logger
@@ -382,7 +383,22 @@ def aggregate_data(
     logger.trace("Aggregate data completed")
 
 
-def remove_old_data(timestamp, period_s=3600, db_path="gpu_history.db"):
+def remove_old_data(
+    timestamp: dt.datetime,
+    period_s: int = 3600,
+    db_path: str = "gpu_info.db",
+) -> None:
+    """
+    删除 timestamp 前 period 秒的数据
+
+    Args:
+        timestamp (dt.datetime): 时间戳
+        period_s (int, optional): 删除周期. Defaults to 3600.
+        db_path (str, optional): 数据库路径. Defaults to "gpu_info.db".
+
+    Returns:
+        None
+    """
     logger.trace(f"Removing old data before {timestamp - pd.Timedelta(seconds=period_s)}")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -414,24 +430,44 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Monitor GPU usage of current device.")
     parser.add_argument("--name", help="The device name to monitor.", default="leo")
     parser.add_argument("--ngpus", type=int, help="The number of GPUs to monitor.", default=8)
+    parser.add_argument("--gmem", type=int, help="The total memory of the GPU in GB.", default=48)
+    parser.add_argument("--aggr_period", type=int, help="The aggregation period in seconds.", default=30)
     parser.add_argument("--fault_detection", type=bool, help="Whether to enable fault detection.", default=False)
     args = parser.parse_args()
 
     fault_detector = None
     if args.fault_detection:
         SERVER_PASSPORT = getpass.getpass("Please input your email passport: ")
-        fault_detector = GpuFaultDetector(password=SERVER_PASSPORT, NGPU=args.ngpus)
+        fault_detector = GpuFaultDetector(password=SERVER_PASSPORT, NGPU=args.ngpus, GMEM=args.gmem)
 
-    logger.add("log/GPU_logger_{time:YYYY-MM-DD}.log", rotation="00:00", retention="7 days", level="TRACE")
+    logger.add(
+        f"log/GPU_logger_{args.name}_{{time:YYYY-MM-DD}}.log", rotation="00:00", retention="7 days", level="TRACE"
+    )
     logger.info("Starting GPU logger")
     DB_PATH = f"data/gpu_history_{args.name}.db"
     DB_REALTIME_PATH = f"data/gpu_info_{args.name}.db"
+    AGGR_PERIOD = args.aggr_period
 
     initialize_database(db_path=DB_PATH)
     initialize_database(db_path=DB_REALTIME_PATH)
     logger.info("Database initialized")
-    timestamp_last = dt.datetime.now(tz=dt.timezone.utc)
-    AGGR_PERIOD = 30  # 聚合周期：30 秒
+
+    def job_aggregate():
+        timestamp = dt.datetime.now(tz=dt.timezone.utc)
+        aggregate_data(
+            timestamp,
+            period_s=AGGR_PERIOD,
+            db_path=DB_PATH,
+            db_realtime_path=DB_REALTIME_PATH,
+            fault_detector=fault_detector,
+        )
+
+    def job_clean():
+        timestamp = dt.datetime.now(tz=dt.timezone.utc)
+        remove_old_data(timestamp, period_s=3600, db_path=DB_REALTIME_PATH)
+
+    schedule.every(AGGR_PERIOD).seconds.do(job_aggregate)
+    schedule.every(3600).seconds.do(job_clean)
 
     while True:
         try:
@@ -441,16 +477,7 @@ if __name__ == "__main__":
             gpu_dfs = process_gpu_info(gpu_info)
 
             update_database(gpu_dfs, curr_time.strftime("%Y-%m-%d %H:%M:%S"), db_path=DB_REALTIME_PATH)
-            if (curr_time - timestamp_last).seconds >= AGGR_PERIOD - 1:
-                timestamp_last = curr_time
-                aggregate_data(
-                    timestamp_last,
-                    period_s=AGGR_PERIOD,
-                    db_path=DB_PATH,
-                    db_realtime_path=DB_REALTIME_PATH,
-                    fault_detector=fault_detector,
-                )
-                remove_old_data(timestamp_last, period_s=3600, db_path=DB_REALTIME_PATH)
+            schedule.run_pending()
 
             time.sleep(1)
 
