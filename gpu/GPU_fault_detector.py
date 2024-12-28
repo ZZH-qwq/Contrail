@@ -30,6 +30,10 @@ class GpuUsageManager:
         """
         更新 GPU 使用情况数据并计算平均值
         """
+        if len(gpu_df) != self.NGPU:
+            logger.warning(f"Expected {self.NGPU} GPUs, but got {len(gpu_df)}")
+            return
+
         gpu_utils = gpu_df["gpu_utilization"].values
         gpu_mems = gpu_df["used_memory"].values / 0x40000000 / self.GMEM
 

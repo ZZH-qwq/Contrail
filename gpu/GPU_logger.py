@@ -502,7 +502,7 @@ if __name__ == "__main__":
             logger.info("Monitoring stopped")
             break
         except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
+            logger.exception(f"An unexpected error occurred: {e}")
 
             if args.fault_detection:
                 dyn_content = {"time": curr_time.strftime("%Y-%m-%d %H:%M:%S"), "hostname": args.name, "error": str(e)}
