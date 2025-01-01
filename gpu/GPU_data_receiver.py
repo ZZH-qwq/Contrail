@@ -1,12 +1,36 @@
-from loguru import logger
 import socket
 import json
+from loguru import logger
 
+import sys
+
+sys.path.append(".")
 from GPU_logger import *
 
 
+CONN_LOST_TEMPLATE = EmailTemplate(
+    subject="GPU Data Receiver: Connection Lost",
+    content="""
+    [GPU Data Receiver]
+    Time: ${time}
+    Hostname: ${hostname}
+    
+    Connection from ${client_ip} lost.
+    """,
+)
+
+
 # 接收 GPU 信息的函数
-def receive_gpu_info(server_ip, server_port, device="virgo"):
+def receive_gpu_info(
+    args,
+    fault_detector: GpuFaultDetector = None,
+    sender: EmailSender = None,
+):
+    server_ip = args.ip
+    server_port = args.port
+    device = args.name
+    AGGR_PERIOD = args.aggr_period
+
     logger.info(f"Starting server at {server_ip}:{server_port}")
     # 初始化 Socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -21,10 +45,26 @@ def receive_gpu_info(server_ip, server_port, device="virgo"):
 
     initialize_database(db_path=DB_PATH)
     initialize_database(db_path=DB_REALTIME_PATH)
-    # print("Database initialized.")
     logger.info("Database initialized.")
-    timestamp_last = dt.datetime.now(tz=dt.timezone.utc)
+    curr_time = dt.datetime.now(tz=dt.timezone.utc)
     AGGR_PERIOD = 30  # 聚合周期：30 秒
+
+    def job_aggregate():
+        timestamp = curr_time
+        aggregate_data(
+            timestamp,
+            period_s=AGGR_PERIOD,
+            db_path=DB_PATH,
+            db_realtime_path=DB_REALTIME_PATH,
+            fault_detector=fault_detector,
+        )
+
+    def job_clean():
+        timestamp = curr_time
+        remove_old_data(timestamp, period_s=3600, db_path=DB_REALTIME_PATH)
+
+    schedule.every(AGGR_PERIOD).seconds.do(job_aggregate)
+    schedule.every(3600).seconds.do(job_clean)
 
     try:
         while True:
@@ -48,22 +88,17 @@ def receive_gpu_info(server_ip, server_port, device="virgo"):
 
                         if "magic" not in message or message["magic"] != 23333:
                             logger.warning(f"Invalid data packet: {message}")
-                            # print("错误的数据包：", message)
                             continue
 
                         gpu_info = message["gpu_info"]
-                        curr_time = dt.datetime.strptime(message["timestamp"], "%Y-%m-%dT%H:%M:%S.%f").replace(
-                            tzinfo=dt.timezone(dt.timedelta(hours=8))
-                        )
-                        curr_time = curr_time - dt.timedelta(hours=8)  # Convert from UTC+8 to UTC+0
-                        update_database(gpu_info, curr_time.strftime("%Y-%m-%d %H:%M:%S"), db_path=DB_REALTIME_PATH)
-                        if (curr_time - timestamp_last).seconds >= AGGR_PERIOD - 1:
-                            timestamp_last = curr_time
-                            aggregate_data(
-                                timestamp_last, period_s=AGGR_PERIOD, db_path=DB_PATH, db_realtime_path=DB_REALTIME_PATH
-                            )
-                            remove_old_data(timestamp_last, period_s=3600, db_path=DB_REALTIME_PATH)
-                        time.sleep(1)
+                        curr_time = dt.datetime.fromisoformat(message["timestamp"]).astimezone(dt.timezone.utc)
+
+                        gpu_dfs = process_gpu_info(gpu_info)
+
+                        update_database(gpu_dfs, curr_time.strftime("%Y-%m-%d %H:%M:%S"), db_path=DB_REALTIME_PATH)
+                        schedule.run_pending()
+
+                        time.sleep(0.1)
 
                     except json.JSONDecodeError:
                         logger.warning(f"Failed to decode JSON: {buffer.decode('utf-8')}")
@@ -71,15 +106,41 @@ def receive_gpu_info(server_ip, server_port, device="virgo"):
                         if data[-1] != ord("}"):
                             continue
                         else:
-                            # print("数据包解析失败：", buffer.decode("utf-8"))
                             logger.error(f"Failed to decode JSON: {buffer.decode('utf-8')}")
                             buffer = b""
                     except Exception as e:
-                        logger.error(f"An unexpected error occurred: {e}")
+                        logger.exception(f"An unexpected error occurred: {e}")
                         buffer = b""
+
+                        if sender is not None:
+                            dyn_content = {
+                                "time": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "hostname": args.name,
+                                "error": str(e),
+                            }
+                            ERROR_REPORT_TEMPLATE(sender, **dyn_content)
+
+                # 断开连接
+                logger.info(f"Connection from {client_address} closed")
+                if sender is not None:
+                    dyn_content = {
+                        "time": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "hostname": args.name,
+                        "client_ip": client_address[0],
+                    }
+                    CONN_LOST_TEMPLATE(sender, **dyn_content)
 
     except KeyboardInterrupt:
         logger.info("Server stopped")
+    except Exception as e:
+        logger.exception(f"An unexpected error occurred: {e}")
+        if sender is not None:
+            dyn_content = {
+                "time": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "hostname": args.name,
+                "error": str(e),
+            }
+            ERROR_REPORT_TEMPLATE(sender, **dyn_content)
     finally:
         server_socket.close()
         logger.trace("Server socket closed")
@@ -93,9 +154,25 @@ if __name__ == "__main__":
     parser.add_argument("--ip", type=str, help="The IP address of the server.", default="0.0.0.0")
     parser.add_argument("--port", type=int, help="The port of the server.", default=3334)
     parser.add_argument("--name", type=str, help="The device name.", default="virgo")
+    parser.add_argument("--ngpus", type=int, help="The number of GPUs to monitor.", default=8)
+    parser.add_argument("--gmem", type=int, help="The total memory of the GPU in GB.", default=48)
+    parser.add_argument("--aggr_period", type=int, help="The aggregation period in seconds.", default=30)
+    parser.add_argument("--fault_detection", type=bool, help="Whether to enable fault detection.", default=False)
     args = parser.parse_args()
 
-    logger.add("log/GPU_data_receiver_{time:YYYY-MM-DD}.log", rotation="00:00", retention="7 days", level="TRACE")
+    fault_detector = None
+    sender = None
+    if args.fault_detection:
+        SERVER_PASSPORT = getpass.getpass("Please input your email passport: ")
+        sender = EmailSender(password=SERVER_PASSPORT)
+        fault_detector = GpuFaultDetector(password=SERVER_PASSPORT, NGPU=args.ngpus, GMEM=args.gmem)
+
+    logger.add(
+        f"log/GPU_data_receiver_{args.name}_{{time:YYYY-MM-DD}}.log",
+        rotation="00:00",
+        retention="7 days",
+        level="TRACE",
+    )
     logger.info("Starting GPU data receiver")
 
-    receive_gpu_info(args.ip, args.port, args.name)
+    receive_gpu_info(args, fault_detector, sender)
