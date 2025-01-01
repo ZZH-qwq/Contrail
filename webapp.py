@@ -13,6 +13,8 @@ parser.add_argument("--disable_info", action="store_true", help="Disable user in
 parser.add_argument("--enable_name_dict", action="store_true", help="Enable name dictionary mapping.")
 
 parser.add_argument("--add_device", type=str, nargs="+", help="List of devices to monitor.", default=["Leo", "Virgo"])
+
+parser.add_argument("--history_only", action="store_true", help="Only show history pages.")
 args = parser.parse_args()
 
 if os.getenv("CONTRAIL_LOGGER_ADDED", "0") == "0":
@@ -24,10 +26,11 @@ if os.getenv("CONTRAIL_LOGGER_ADDED", "0") == "0":
 pages = {}
 
 for name in args.add_device:
-    pages[name] = [
-        st.Page(f"webapp/realtime_{name.lower()}.py", title=f"{name}: 实时状态"),
-        st.Page(f"webapp/history_{name.lower()}.py", title=f"{name}: 历史信息"),
-    ]
+    pages[name] = []
+    if not args.history_only:
+        pages[name].append(st.Page(f"webapp/realtime_{name.lower()}.py", title=f"{name}: 实时状态"))
+
+    pages[name].append(st.Page(f"webapp/history_{name.lower()}.py", title=f"{name}: 历史信息"))
 
 if not args.disable_ai4s:
     pages["AI4S"] = [

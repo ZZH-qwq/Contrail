@@ -98,7 +98,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Send GPU information to the server.")
-    parser.add_argument("--name", type=str, help="The name of the server.", default="virgo")
+    parser.add_argument("--name", type=str, help="The name of the server.", default="virgo_local")
     parser.add_argument("--server_ip", type=str, required=True, help="The IP address of the server.")
     parser.add_argument("--server_port", type=int, required=True, help="The port of the server.")
     parser.add_argument("--ngpus", type=int, help="The number of GPUs to monitor.", default=8)
