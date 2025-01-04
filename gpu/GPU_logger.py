@@ -138,7 +138,10 @@ def process_gpu_info(gpu_info: List[Dict]) -> Tuple[pd.DataFrame, pd.DataFrame]:
                 }
             )
 
-    processes_df = pd.DataFrame(processes).set_index("gpu_index")
+    if len(processes) == 0:
+        processes_df = pd.DataFrame(columns=["gpu_index", "user", "used_memory", "gpu_utilization"])
+    else:
+        processes_df = pd.DataFrame(processes).set_index("gpu_index")
 
     return gpu_df, processes_df
 
