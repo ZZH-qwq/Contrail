@@ -1,5 +1,6 @@
 import socket
 import json
+import struct
 from loguru import logger
 
 import sys
@@ -18,6 +19,19 @@ CONN_LOST_TEMPLATE = EmailTemplate(
     Connection from ${client_ip} lost.
     """,
 )
+
+
+def flush_socket(sock):
+    try:
+        sock.setblocking(False)
+        while True:
+            leftover = sock.recv(4096)
+            if not leftover:
+                break
+    except BlockingIOError:
+        pass
+    finally:
+        sock.setblocking(True)
 
 
 # 接收 GPU 信息的函数
@@ -74,18 +88,34 @@ def receive_gpu_info(
             logger.info(f"Connection from {client_address}")
 
             with client_socket:
-                buffer = b""
                 while True:
-                    # 接收数据
-                    data = client_socket.recv(4096)
-                    if not data:
+                    struct_bytes = client_socket.recv(4)
+                    if not struct_bytes:
                         break
-                    buffer += data
+                    if len(struct_bytes) < 4:
+                        logger.warning("Incomplete header. Flushing buffer and continuing.")
+                        flush_socket(client_socket)
+                        continue
+                    header_len = struct.unpack("i", struct_bytes)[0]
+                    logger.trace(f"Header length: {header_len}")
+
+                    header_data = client_socket.recv(header_len)
+                    if len(header_data) < header_len:
+                        logger.warning("Incomplete header data. Flushing buffer and continuing.")
+                        flush_socket(client_socket)
+                        continue
 
                     try:
-                        # 尝试解析 JSON 数据
-                        message = json.loads(buffer.decode("utf-8"))
-                        buffer = b""  # 清空缓冲区
+                        header = json.loads(header_data.decode("utf-8"))
+                        data_len = header["data_len"]
+                        logger.trace(f"Data length: {data_len}")
+                        message_data = client_socket.recv(data_len)
+                        if len(message_data) < data_len:
+                            logger.warning("Incomplete message data. Flushing buffer and continuing.")
+                            flush_socket(client_socket)
+                            continue
+
+                        message = json.loads(message_data.decode("utf-8"))
 
                         if "magic" not in message or message["magic"] != 23333:
                             logger.warning(f"Invalid data packet: {message}")
@@ -102,16 +132,11 @@ def receive_gpu_info(
                         time.sleep(0.1)
 
                     except json.JSONDecodeError:
-                        logger.warning(f"Failed to decode JSON: {buffer.decode('utf-8')}")
-                        # 检测是否是不完整数据包
-                        if data[-1] != ord("}"):
-                            continue
-                        else:
-                            logger.error(f"Failed to decode JSON: {buffer.decode('utf-8')}")
-                            buffer = b""
+                        logger.error("JSON decode error. Flushing buffer and continuing.")
+                        flush_socket(client_socket)
+                        continue
                     except Exception as e:
                         logger.exception(f"An unexpected error occurred: {e}")
-                        buffer = b""
 
                         if sender is not None:
                             dyn_content = {

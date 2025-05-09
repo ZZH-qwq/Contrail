@@ -1,6 +1,7 @@
 import socket
 import json
 import time
+import struct
 from datetime import datetime
 from pynvml import *
 
@@ -17,6 +18,11 @@ SENDER_ERR_TEMPLATE = EmailTemplate(
     Error: ${error}
     """,
 )
+
+
+def build_header(data_len):
+    header = {"data_len": data_len}
+    return json.dumps(header).encode("utf-8")
 
 
 # 发送 GPU 信息的函数
@@ -77,6 +83,12 @@ def send_gpu_info(
             schedule.run_pending()
 
             # 发送数据
+            data_len = len(message)
+            header = build_header(data_len)
+            header_len = len(header)
+            struct_bytes = struct.pack("i", header_len)
+            client_socket.sendall(struct_bytes)
+            client_socket.sendall(header)
             client_socket.sendall(message.encode("utf-8"))
 
             # 间隔 1 秒发送一次
