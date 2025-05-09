@@ -1,12 +1,12 @@
-__pycache__/
+__pycache__
 
-data/
+data
 
-log/
+log
 
-removed/
+removed
 
-screenshots/
+screenshots
 
 *.xlsx
 

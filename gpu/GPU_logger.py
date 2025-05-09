@@ -489,6 +489,8 @@ if __name__ == "__main__":
     schedule.every(AGGR_PERIOD).seconds.do(job_aggregate)
     schedule.every(3600).seconds.do(job_clean)
 
+    n_uncaught = 0
+
     while True:
         try:
             gpu_info = get_gpu_info()
@@ -512,3 +514,7 @@ if __name__ == "__main__":
                 ERROR_REPORT_TEMPLATE(sender, **dyn_content)
 
             time.sleep(1)
+            n_uncaught += 1
+            if n_uncaught >= 5:
+                logger.error("Too many uncaught exceptions. Exiting.")
+                break

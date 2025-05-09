@@ -65,6 +65,7 @@ def receive_gpu_info(
 
     schedule.every(AGGR_PERIOD).seconds.do(job_aggregate)
     schedule.every(3600).seconds.do(job_clean)
+    n_uncaught = 0
 
     try:
         while True:
@@ -119,6 +120,12 @@ def receive_gpu_info(
                                 "error": str(e),
                             }
                             ERROR_REPORT_TEMPLATE(sender, **dyn_content)
+
+                        time.sleep(1)
+                        n_uncaught += 1
+                        if n_uncaught >= 5:
+                            logger.error("Too many uncaught exceptions. Exiting.")
+                            break
 
                 # 断开连接
                 logger.info(f"Connection from {client_address} closed")
