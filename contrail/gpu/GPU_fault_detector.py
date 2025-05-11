@@ -5,10 +5,7 @@ from loguru import logger
 from abc import abstractmethod
 from typing import Optional, List, Tuple
 
-import sys
-
-sys.path.append(".")
-from email_sender import EmailSender, EmailTemplate, BasicEvent
+from utils.email_sender import EmailSender, EmailTemplate, BasicEvent
 
 
 class GpuUsageManager:

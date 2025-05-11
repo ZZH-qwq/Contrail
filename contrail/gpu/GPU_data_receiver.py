@@ -3,10 +3,7 @@ import json
 import struct
 from loguru import logger
 
-import sys
-
-sys.path.append(".")
-from GPU_logger import *
+from gpu.GPU_logger import *
 
 
 CONN_LOST_TEMPLATE = EmailTemplate(

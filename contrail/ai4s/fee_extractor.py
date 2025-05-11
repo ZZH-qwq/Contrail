@@ -5,8 +5,7 @@ import sys
 import os
 
 if os.getenv("ENABLE_NAME_DICT", "0") == "1":
-    sys.path.append(".")
-    from name_dict import NAME_DICT_FEE
+    from utils.name_dict import NAME_DICT_FEE
 else:
     NAME_DICT_FEE = {}
 

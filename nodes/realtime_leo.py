@@ -1,4 +1,4 @@
-from realtime import webapp_realtime
+from contrail.webapp import webapp_realtime
 
 
 config = {

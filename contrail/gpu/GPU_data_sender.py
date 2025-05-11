@@ -5,7 +5,7 @@ import struct
 from datetime import datetime
 from pynvml import *
 
-from GPU_logger import *
+from gpu.GPU_logger import *
 
 
 SENDER_ERR_TEMPLATE = EmailTemplate(

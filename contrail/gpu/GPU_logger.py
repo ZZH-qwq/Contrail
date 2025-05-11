@@ -10,11 +10,9 @@ from typing import List, Dict, Tuple, Optional
 
 from pynvml import *
 import psutil
-import sys
 
-sys.path.append(".")
-from email_sender import EmailSender, EmailTemplate
-from GPU_fault_detector import GpuFaultDetector
+from utils.email_sender import EmailSender, EmailTemplate
+from gpu.GPU_fault_detector import GpuFaultDetector
 
 
 def get_gpu_info() -> List[Dict]:
@@ -146,86 +144,90 @@ def process_gpu_info(gpu_info: List[Dict]) -> Tuple[pd.DataFrame, pd.DataFrame]:
     return gpu_df, processes_df
 
 
-def initialize_database(db_path="gpu_history.db"):
+def initialize_database(db_path="gpu_history.db", is_history=False) -> None:
     logger.trace(f"Initializing database at {db_path}")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # 创建 GPU 信息表，允许多条记录
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS gpu_info (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            gpu_index INTEGER,
-            name TEXT,
-            gpu_utilization INTEGER,
-            memory_utilization INTEGER,
-            total_memory INTEGER,
-            used_memory INTEGER,
-            free_memory INTEGER,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    if not is_history:
+        # 创建 GPU 信息表，允许多条记录
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS gpu_info (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gpu_index INTEGER,
+                name TEXT,
+                gpu_utilization INTEGER,
+                memory_utilization INTEGER,
+                total_memory INTEGER,
+                used_memory INTEGER,
+                free_memory INTEGER,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
         )
-        """
-    )
 
-    # 创建 GPU 历史记录 以更长间隔记录历史数据
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS gpu_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            gpu_index INTEGER,
-            gpu_utilization INTEGER,
-            gpu_utilization_max INTEGER,
-            gpu_utilization_min INTEGER,
-            used_memory INTEGER,
-            used_memory_max INTEGER,
-            used_memory_min INTEGER,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        # 创建 GPU 用户使用记录表，允许多条记录
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS gpu_user_info (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gpu_index INTEGER,
+                user TEXT,
+                used_memory INTEGER,
+                gpu_utilization INTEGER,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
         )
-        """
-    )
 
-    # 创建 GPU 用户使用记录表，允许多条记录
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS gpu_user_info (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            gpu_index INTEGER,
-            user TEXT,
-            used_memory INTEGER,
-            gpu_utilization INTEGER,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    else:
+        # 创建 GPU 历史记录 以更长间隔记录历史数据
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS gpu_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gpu_index INTEGER,
+                gpu_utilization INTEGER,
+                gpu_utilization_max INTEGER,
+                gpu_utilization_min INTEGER,
+                used_memory INTEGER,
+                used_memory_max INTEGER,
+                used_memory_min INTEGER,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
         )
-        """
-    )
 
-    # 创建 GPU 用户使用历史记录表，以更长间隔记录历史数据
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS gpu_user_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            gpu_index INTEGER,
-            user TEXT,
-            used_memory INTEGER,
-            used_memory_max INTEGER,
-            used_memory_min INTEGER,
-            gpu_utilization INTEGER,
-            gpu_utilization_max INTEGER,
-            gpu_utilization_min INTEGER,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        # 创建 GPU 用户使用历史记录表，以更长间隔记录历史数据
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS gpu_user_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gpu_index INTEGER,
+                user TEXT,
+                used_memory INTEGER,
+                used_memory_max INTEGER,
+                used_memory_min INTEGER,
+                gpu_utilization INTEGER,
+                gpu_utilization_max INTEGER,
+                gpu_utilization_min INTEGER,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
         )
-        """
-    )
 
     # 添加索引
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_gpu_timestamp ON gpu_info (timestamp)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_gpu_index ON gpu_info (gpu_index)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_timestamp ON gpu_user_info (timestamp)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_gpu_index ON gpu_user_info (gpu_index)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_gpu_history_timestamp ON gpu_history (timestamp)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_gpu_history_gpu_index ON gpu_history (gpu_index)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_history_timestamp ON gpu_user_history (timestamp)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_history_gpu_index ON gpu_user_history (gpu_index)")
+    if not is_history:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gpu_timestamp ON gpu_info (timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gpu_index ON gpu_info (gpu_index)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_timestamp ON gpu_user_info (timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_gpu_index ON gpu_user_info (gpu_index)")
+    else:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gpu_history_timestamp ON gpu_history (timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gpu_history_gpu_index ON gpu_history (gpu_index)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_history_timestamp ON gpu_user_history (timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_history_gpu_index ON gpu_user_history (gpu_index)")
 
     # 使用 WAL 模式
     cursor.execute("PRAGMA journal_mode=WAL")
@@ -273,7 +275,7 @@ def update_database(
         conn.commit()
 
     except Exception as e:
-        logger.error(f"Error updating database: {e}")
+        logger.error(f"Error updating database {db_path}: {e}")
         # 出现错误时回滚
         conn.rollback()
 

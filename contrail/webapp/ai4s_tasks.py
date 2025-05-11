@@ -7,7 +7,7 @@ import json
 import os
 
 if os.getenv("ENABLE_NAME_DICT", "0") == "1":
-    from name_dict import NAME_DICT_FEE
+    from utils.name_dict import NAME_DICT_FEE
 
 
 def read_json_result(file="data/ai4s_data.json", display_warning=True):
@@ -82,44 +82,45 @@ def display_data(i, task, key="last"):
         st.plotly_chart(fig, use_container_width=True, key=f"{key}_{task['task_name']}_gmem")
 
 
-st.title("AI4S: 任务列表")
+def webapp_ai4s():
+    st.title("AI4S: 任务列表")
 
-col1, col2, col3 = st.columns([4, 11, 1], vertical_alignment="center")
+    col1, col2, col3 = st.columns([4, 11, 1], vertical_alignment="center")
 
-col1.checkbox("自动刷新", key="autorefresh", value=True)
+    col1.checkbox("自动刷新", key="ai4s_autorefresh", value=True)
 
-with col3:
-    if st.session_state["autorefresh"]:
-        st_autorefresh(interval=60000, key="ai4s_task_monitor")
+    with col3:
+        if st.session_state["ai4s_autorefresh"]:
+            st_autorefresh(interval=60000, key="ai4s_task_monitor")
 
-with col2:
-    data = read_json_result()
+    with col2:
+        data = read_json_result()
 
-last_state = data.get("state", "failed")
-data.pop("state", None)
+    last_state = data.get("state", "failed")
+    data.pop("state", None)
 
-if not data:
-    st.info("没有正在运行的任务。")
+    if not data:
+        st.info("没有正在运行的任务。")
 
-# last_container = st.container() if last_state == "success" else st.expander("最近完成的任务")
+    # last_container = st.container() if last_state == "success" else st.expander("最近完成的任务")
 
-if last_state == "success":
-    last_container = st.container()
-else:
-    last_container = st.expander("最近完成的任务")
-    st.warning("最近完成的任务运行失败。显示最近的成功记录：")
-
-    success_data = read_json_result("data/ai4s_data_last_success.json", False)
-    if success_data:
-        success_data.pop("state", None)
-        if not success_data:
-            st.info("成功的任务记录为空。")
-        for i, task in success_data.items():
-            display_data(i, task, "success")
+    if last_state == "success":
+        last_container = st.container()
     else:
-        st.warning("没有成功的任务记录。")
+        last_container = st.expander("最近完成的任务")
+        st.warning("最近完成的任务运行失败。显示最近的成功记录：")
 
-with last_container:
-    for i, task in data.items():
-        display_data(i, task, "last")
-        # st.markdown("---")
+        success_data = read_json_result("data/ai4s_data_last_success.json", False)
+        if success_data:
+            success_data.pop("state", None)
+            if not success_data:
+                st.info("成功的任务记录为空。")
+            for i, task in success_data.items():
+                display_data(i, task, "success")
+        else:
+            st.warning("没有成功的任务记录。")
+
+    with last_container:
+        for i, task in data.items():
+            display_data(i, task, "last")
+            # st.markdown("---")

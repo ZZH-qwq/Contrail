@@ -1,4 +1,4 @@
-from history import webapp_history
+from contrail.webapp import webapp_history
 
 
 config = {

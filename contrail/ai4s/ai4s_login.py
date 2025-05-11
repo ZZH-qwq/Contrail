@@ -19,7 +19,7 @@ args = parser.parse_args()
 # 设置ChromeDriver
 chrome_options = Options()
 chrome_options.add_argument("--headless")
-service = Service("ai4s/chromedriver")
+service = Service("resource/chromedriver")
 
 driver = webdriver.Chrome(service=service, options=chrome_options)
 

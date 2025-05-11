@@ -5,7 +5,7 @@ import altair as alt
 import datetime as dt
 import numpy as np
 
-from GPU_query_db import *
+from gpu.GPU_query_db import *
 
 
 def gpu_chart_band(df, y_label, N_GPU=8):
