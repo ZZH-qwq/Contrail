@@ -446,77 +446,8 @@ ERROR_REPORT_TEMPLATE = EmailTemplate(
 
 
 if __name__ == "__main__":
-    import argparse
+    import json
 
-    parser = argparse.ArgumentParser(description="Monitor GPU usage of current device.")
-    parser.add_argument("--name", help="The device name to monitor.", default="leo")
-    parser.add_argument("--ngpus", type=int, help="The number of GPUs to monitor.", default=8)
-    parser.add_argument("--gmem", type=int, help="The total memory of the GPU in GB.", default=48)
-    parser.add_argument("--aggr_period", type=int, help="The aggregation period in seconds.", default=30)
-    parser.add_argument("--fault_detection", type=bool, help="Whether to enable fault detection.", default=False)
-    args = parser.parse_args()
-
-    fault_detector = None
-    if args.fault_detection:
-        SERVER_PASSPORT = getpass.getpass("Please input your email passport: ")
-        sender = EmailSender(password=SERVER_PASSPORT)
-        fault_detector = GpuFaultDetector(password=SERVER_PASSPORT, NGPU=args.ngpus, GMEM=args.gmem)
-
-    logger.add(
-        f"log/GPU_logger_{args.name}_{{time:YYYY-MM-DD}}.log", rotation="00:00", retention="7 days", level="TRACE"
-    )
-    logger.info("Starting GPU logger")
-    DB_PATH = f"data/gpu_history_{args.name}.db"
-    DB_REALTIME_PATH = f"data/gpu_info_{args.name}.db"
-    AGGR_PERIOD = args.aggr_period
-
-    initialize_database(db_path=DB_PATH)
-    initialize_database(db_path=DB_REALTIME_PATH)
-    logger.info("Database initialized")
-
-    def job_aggregate():
-        timestamp = dt.datetime.now(tz=dt.timezone.utc)
-        aggregate_data(
-            timestamp,
-            period_s=AGGR_PERIOD,
-            db_path=DB_PATH,
-            db_realtime_path=DB_REALTIME_PATH,
-            fault_detector=fault_detector,
-        )
-
-    def job_clean():
-        timestamp = dt.datetime.now(tz=dt.timezone.utc)
-        remove_old_data(timestamp, period_s=3600, db_path=DB_REALTIME_PATH)
-
-    schedule.every(AGGR_PERIOD).seconds.do(job_aggregate)
-    schedule.every(3600).seconds.do(job_clean)
-
-    n_uncaught = 0
-
-    while True:
-        try:
-            gpu_info = get_gpu_info()
-            curr_time = dt.datetime.now(tz=dt.timezone.utc)
-
-            gpu_dfs = process_gpu_info(gpu_info)
-
-            update_database(gpu_dfs, curr_time.strftime("%Y-%m-%d %H:%M:%S"), db_path=DB_REALTIME_PATH)
-            schedule.run_pending()
-
-            time.sleep(1)
-
-        except KeyboardInterrupt:
-            logger.info("Monitoring stopped")
-            break
-        except Exception as e:
-            logger.exception(f"An unexpected error occurred: {e}")
-
-            if args.fault_detection:
-                dyn_content = {"time": curr_time.strftime("%Y-%m-%d %H:%M:%S"), "hostname": args.name, "error": str(e)}
-                ERROR_REPORT_TEMPLATE(sender, **dyn_content)
-
-            time.sleep(1)
-            n_uncaught += 1
-            if n_uncaught >= 5:
-                logger.error("Too many uncaught exceptions. Exiting.")
-                break
+    gpu_info = get_gpu_info()
+    message = json.dumps(gpu_info)
+    print(message)
