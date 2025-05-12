@@ -4,6 +4,9 @@ setup(
     name="contrail",
     version="0.1",
     packages=find_packages(),
+    entry_points={
+        "console_scripts": ["contrail = contrail.cli:main"],
+    },
     install_requires=[
         "altair",
         "loguru",

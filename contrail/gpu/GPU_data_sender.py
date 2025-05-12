@@ -2,10 +2,11 @@ import socket
 import json
 import time
 import struct
+from dataclasses import dataclass
 from datetime import datetime
-from pynvml import *
+from loguru import logger
 
-from gpu.GPU_logger import *
+from contrail.gpu.GPU_logger import *
 
 
 SENDER_ERR_TEMPLATE = EmailTemplate(
@@ -20,6 +21,14 @@ SENDER_ERR_TEMPLATE = EmailTemplate(
 )
 
 
+@dataclass
+class GpuSenderConfig:
+    name: str
+    server_ip: str
+    server_port: int
+    aggr_period: int = 30
+
+
 def build_header(data_len):
     header = {"data_len": data_len}
     return json.dumps(header).encode("utf-8")
@@ -32,20 +41,23 @@ def send_gpu_info(
     sender: EmailSender = None,
 ):
     # 初始化 Socket
+    logger.info(f"Connecting to server {args.server_ip}:{args.server_port}...")
     server_ip = args.server_ip
     server_port = args.server_port
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((server_ip, server_port))
+    logger.info(f"Connected to server {server_ip}:{server_port}")
 
     DB_PATH = f"data/gpu_history_{args.name}.db"
     DB_REALTIME_PATH = f"data/gpu_info_{args.name}.db"
 
-    initialize_database(db_path=DB_PATH)
-    initialize_database(db_path=DB_REALTIME_PATH)
-    print("Database initialized.")
+    initialize_database(db_path=DB_PATH, is_history=True)
+    initialize_database(db_path=DB_REALTIME_PATH, is_history=False)
+    logger.info("Database initialized.")
     AGGR_PERIOD = args.aggr_period
 
     def job_aggregate():
+        logger.trace("Running aggregation job...")
         timestamp = dt.datetime.now(tz=dt.timezone.utc)
         aggregate_data(
             timestamp,
@@ -56,6 +68,7 @@ def send_gpu_info(
         )
 
     def job_clean():
+        logger.trace("Running clean job...")
         timestamp = dt.datetime.now(tz=dt.timezone.utc)
         remove_old_data(timestamp, period_s=3600, db_path=DB_REALTIME_PATH)
 
@@ -94,9 +107,9 @@ def send_gpu_info(
             # 间隔 1 秒发送一次
             time.sleep(1)
     except KeyboardInterrupt:
-        print("发送端已停止")
+        logger.info("Stopping GPU data sender...")
     except Exception as e:
-        print(f"发送端发生异常：{e}")
+        logger.error(f"Error occurred: {e}")
 
         if sender is not None:
             dyn_content = {"time": curr_time.strftime("%Y-%m-%d %H:%M:%S"), "hostname": args.name, "error": str(e)}
@@ -127,4 +140,11 @@ if __name__ == "__main__":
         sender = EmailSender(password=SERVER_PASSPORT)
         fault_detector = GpuFaultDetector(password=SERVER_PASSPORT, NGPU=args.ngpus, GMEM=args.gmem)
 
-    send_gpu_info(args, fault_detector, sender)
+    sender_config = GpuSenderConfig(
+        name=args.name,
+        server_ip=args.server_ip,
+        server_port=args.server_port,
+        aggr_period=args.aggr_period,
+    )
+
+    send_gpu_info(sender_config, fault_detector, sender)

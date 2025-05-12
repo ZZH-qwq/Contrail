@@ -1,0 +1,30 @@
+{
+    "monitor": {
+        "Leo": {
+            "name": "leo",
+            "type": "local",
+            "params": {}
+        },
+        "Virgo": {
+            "name": "virgo",
+            "type": "socket",
+            "params": {
+                "ip": "0.0.0.0",
+                "port": 3334
+            },
+            "poll_interval": 0.1
+        },
+        "Libra": {
+            "name": "libra",
+            "type": "ssh",
+            "params": {
+                "host": "10.80.0.1",
+                "port": 22,
+                "user": "admin",
+                "key_file": "/home/admin/.ssh/id_rsa",
+                "command": "bash /home/admin/monitor.sh"
+            },
+            "poll_interval": 0.5
+        }
+    }
+}

@@ -6,11 +6,11 @@ from multiprocessing import Process
 import signal
 import sys
 
-from gpu.framework import DeviceConfig
-from gpu.connector.local import LocalDeviceConnector
-from gpu.connector.socket import SocketDeviceConnector
-from gpu.connector.ssh import SSHDeviceConnector
-from utils.email_sender import EmailSender, EmailTemplate
+from contrail.gpu.framework import DeviceConfig
+from contrail.gpu.connector.local import LocalDeviceConnector
+from contrail.gpu.connector.socket import SocketDeviceConnector
+from contrail.gpu.connector.ssh import SSHDeviceConnector
+from contrail.utils.email_sender import EmailSender, EmailTemplate
 
 
 class DeviceManager:

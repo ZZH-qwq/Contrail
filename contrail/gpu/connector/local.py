@@ -1,7 +1,7 @@
 from loguru import logger
 
-from gpu.GPU_logger import get_gpu_info
-from gpu.framework import BaseDeviceConnector
+from contrail.gpu.GPU_logger import get_gpu_info
+from contrail.gpu.framework import BaseDeviceConnector
 
 
 class LocalDeviceConnector(BaseDeviceConnector):

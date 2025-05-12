@@ -5,7 +5,7 @@ import sys
 import os
 
 if os.getenv("ENABLE_NAME_DICT", "0") == "1":
-    from utils.name_dict import NAME_DICT_FEE
+    from contrail.utils.name_dict import NAME_DICT_FEE
 else:
     NAME_DICT_FEE = {}
 

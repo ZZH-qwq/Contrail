@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-from utils.name_dict import NAME_DICT_FEE, dict_username
+from contrail.utils.name_dict import NAME_DICT_FEE, dict_username
 
 
 @st.cache_data

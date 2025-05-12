@@ -7,7 +7,7 @@ import json
 import os
 
 if os.getenv("ENABLE_NAME_DICT", "0") == "1":
-    from utils.name_dict import NAME_DICT_FEE
+    from contrail.utils.name_dict import NAME_DICT_FEE
 
 
 def read_json_result(file="data/ai4s_data.json", display_warning=True):

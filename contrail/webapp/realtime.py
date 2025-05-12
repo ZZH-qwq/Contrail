@@ -4,7 +4,7 @@ import plotly.express as px
 import altair as alt
 import datetime as dt
 
-from gpu.GPU_query_db import *
+from contrail.gpu.GPU_query_db import *
 
 
 COLOR_SCHEME = px.colors.qualitative.Plotly

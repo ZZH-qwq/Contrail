@@ -4,7 +4,7 @@ import struct
 from typing import Optional
 from loguru import logger
 
-from gpu.framework import BaseDeviceConnector
+from contrail.gpu.framework import BaseDeviceConnector
 
 
 class SocketDeviceConnector(BaseDeviceConnector):

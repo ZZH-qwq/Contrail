@@ -5,7 +5,7 @@ from loguru import logger
 from abc import abstractmethod
 from typing import Optional, List, Tuple
 
-from utils.email_sender import EmailSender, EmailTemplate, BasicEvent
+from contrail.utils.email_sender import EmailSender, EmailTemplate, BasicEvent
 
 
 class GpuUsageManager:

@@ -1,0 +1,6 @@
+{
+    "name": "virgo_local",
+    "server_ip": "192.168.1.100",
+    "server_port": 8000,
+    "aggr_period": 30
+}

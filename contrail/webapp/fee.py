@@ -1,7 +1,7 @@
 import streamlit as st
 import plotly.express as px
 
-from ai4s.fee_extractor import *
+from contrail.ai4s.fee_extractor import *
 
 
 def webapp_fee():

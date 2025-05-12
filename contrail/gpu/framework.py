@@ -9,7 +9,7 @@ from loguru import logger
 from pynvml import *
 
 # 复用原有模块的功能
-from gpu.GPU_logger import *
+from contrail.gpu.GPU_logger import *
 
 
 @dataclass

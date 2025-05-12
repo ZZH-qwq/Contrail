@@ -11,8 +11,8 @@ from typing import List, Dict, Tuple, Optional
 from pynvml import *
 import psutil
 
-from utils.email_sender import EmailSender, EmailTemplate
-from gpu.GPU_fault_detector import GpuFaultDetector
+from contrail.utils.email_sender import EmailSender, EmailTemplate
+from contrail.gpu.GPU_fault_detector import GpuFaultDetector
 
 
 def get_gpu_info() -> List[Dict]:
