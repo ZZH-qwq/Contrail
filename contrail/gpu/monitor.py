@@ -9,6 +9,7 @@ import sys
 from gpu.framework import DeviceConfig
 from gpu.connector.local import LocalDeviceConnector
 from gpu.connector.socket import SocketDeviceConnector
+from gpu.connector.ssh import SSHDeviceConnector
 from utils.email_sender import EmailSender, EmailTemplate
 
 
@@ -26,7 +27,7 @@ class DeviceManager:
             logger.warning(f"Device {config.name} already connected")
             return
 
-        connector_map = {"local": LocalDeviceConnector, "socket": SocketDeviceConnector}
+        connector_map = {"local": LocalDeviceConnector, "socket": SocketDeviceConnector, "ssh": SSHDeviceConnector}
 
         connector = connector_map[config.type](config)
         self.connected_devices[config.name] = {"connector": connector, "process": None}  # 进程将在 monitor() 中初始化
@@ -125,10 +126,29 @@ if __name__ == "__main__":
         poll_interval=0.1,
     )
 
+    ssh_config = DeviceConfig(
+        name="libra",
+        type="ssh",
+        params={
+            "host": "10.80.0.1",
+            "port": 22,
+            "user": "admin",
+            "key_file": "/home/admin/.ssh/id_rsa",
+            "command": (
+                "source /opt/miniconda3/etc/profile.d/conda.sh && "
+                "conda activate contrail && "
+                "export PYTHONPATH=/home/admin/others/Contrail:$PYTHONPATH && "
+                "python -m contrail.gpu.GPU_logger"
+            ),
+        },
+        poll_interval=0.5,
+    )
+
     # 初始化管理器
     manager = DeviceManager()
     manager.add_device(local_config)
     manager.add_device(socket_config)
+    manager.add_device(ssh_config)
 
     # 启动监控
     manager.monitor()
