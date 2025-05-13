@@ -12,15 +12,18 @@ class SocketDeviceConnector(BaseDeviceConnector):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind((self.config.params["ip"], self.config.params["port"]))
-        self.socket.listen(1)
-        logger.info(f"[{self.config.name}] Listening on {self.config.params['ip']}:{self.config.params['port']}")
+        self.socket = None
         self.client_socket = None
 
     def connect(self):
         if self._connected:
             return
+
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind((self.config.params["ip"], self.config.params["port"]))
+        self.socket.listen(1)
+        logger.info(f"[{self.config.name}] Listening on {self.config.params['ip']}:{self.config.params['port']}")
 
         try:
             self.client_socket, addr = self.socket.accept()
