@@ -140,7 +140,7 @@ def main():
         }
         /* 主页 - 设备操作按钮 */
         .stColumn a[data-testid="stPageLink-NavLink"] {
-            background-color: #aaa3;
+            background-color: #aaa2;
             justify-content: center;
         }
         /* 主页 - column 修改 */
