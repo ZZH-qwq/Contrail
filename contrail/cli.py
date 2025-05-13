@@ -33,17 +33,12 @@ def run_monitor():
     """执行监控模块"""
     import json
     from loguru import logger
-    from contrail.gpu.framework import DeviceConfig
     from contrail.gpu.monitor import DeviceManager
 
-    # 读取 config/host_config.json
-    with open("config/host_config.json", "r") as f:
-        config = json.load(f)
+    manager = DeviceManager()
 
-        manager = DeviceManager()
-
-        for _, conf in config["monitor"].items():
-            manager.add_device(DeviceConfig(**conf))
+    # 加载配置
+    manager.load_config()
 
     # 启动监控
     manager.monitor()
