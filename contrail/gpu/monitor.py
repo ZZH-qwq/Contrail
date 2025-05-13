@@ -87,6 +87,33 @@ class DeviceManager:
         device["process"] = p
         logger.info(f"Started monitoring process for {name} (pid={p.pid})")
 
+    def process_command(self, command: str):
+        """处理命令"""
+        if command == "reload":
+            logger.info("Received reload command, reloading config...")
+            try:
+                device_added = self.load_config(self._config_path)
+                for name in device_added:
+                    self.create_process(name)
+            except Exception as e:
+                logger.error(f"Failed to reload config: {e}")
+        elif command == "exit":
+            logger.info("Received exit command, cleaning up and exiting...")
+            sys.exit(0)
+        elif command == "list":
+            logger.info("Connected devices:")
+            for name in self.connected_devices.keys():
+                logger.info(f" - {name}")
+        elif command.startswith("remove "):
+            # 移除指定设备
+            name = command.split(" ")[1]
+            if name in self.connected_devices:
+                self.remove_device(name)
+            else:
+                logger.warning(f"Device {name} not found")
+        else:
+            logger.warning(f"Unknown command: {command}")
+
     def monitor(self):
         """启动所有设备的监控进程，并监听 stdin 输入"""
         logger.info("Starting monitoring loop")
@@ -121,17 +148,8 @@ class DeviceManager:
                 rlist, _, _ = select.select([sys.stdin], [], [], 2)
                 if rlist:
                     cmd = sys.stdin.readline().strip()
-                    if cmd == "reload":
-                        logger.info("Received reload command, reloading config...")
-                        try:
-                            device_added = self.load_config(self._config_path)
-                            for name in device_added:
-                                self.create_process(name)
-                        except Exception as e:
-                            logger.error(f"Failed to reload config: {e}")
-                    elif cmd == "exit":
-                        logger.info("Received exit command, cleaning up and exiting...")
-                        break
+                    if cmd:
+                        self.process_command(cmd)
                 # 如果没有输入，2秒后继续循环
 
         except KeyboardInterrupt:
