@@ -26,5 +26,42 @@
             },
             "poll_interval": 0.5
         }
+    },
+    "webapp": {
+        "features": {
+            "ai4s": false,
+            "user_info": false,
+            "name_dict": false,
+            "history_only": false
+        },
+        "devices": {
+            "Leo": {
+                "hostname": "Leo",
+                "config": {
+                    "DURATION": 30,
+                    "N_GPU": 8,
+                    "GMEM": 48,
+                    "LIMIT": 1000
+                }
+            },
+            "Virgo": {
+                "hostname": "Virgo",
+                "config": {
+                    "DURATION": 30,
+                    "N_GPU": 8,
+                    "GMEM": 48,
+                    "LIMIT": 1000
+                }
+            },
+            "Libra": {
+                "hostname": "Libra",
+                "config": {
+                    "DURATION": 30,
+                    "N_GPU": 8,
+                    "GMEM": 48,
+                    "LIMIT": 1000
+                }
+            }
+        }
     }
 }
