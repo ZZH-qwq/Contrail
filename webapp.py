@@ -21,6 +21,7 @@ class EnabledFeature:
 @dataclass
 class PageConfig:
     hostname: str
+    gpu_type: str
     realtime_db_path: str = None
     history_db_path: str = None
     config: dict = None
@@ -53,33 +54,36 @@ class DevicePage:
 
 def device_pages(devices: dict, features: EnabledFeature):
     pages = {}
+    configs = {}
 
     for name, device_config in devices.items():
         pages[name] = []
+        configs[name] = PageConfig(**device_config)
         if not features.history_only:
             pages[name].append(
                 st.Page(
-                    DevicePage(webapp_realtime, PageConfig(**device_config), is_realtime=True),
+                    DevicePage(webapp_realtime, configs[name], is_realtime=True),
                     title=f"{name} 实时状态",
                     url_path=f"realtime_{name.lower()}",
                 )
             )
         pages[name].append(
             st.Page(
-                DevicePage(webapp_history, PageConfig(**device_config), is_realtime=False),
+                DevicePage(webapp_history, configs[name], is_realtime=False),
                 title=f"{name} 历史信息",
                 url_path=f"history_{name.lower()}",
             )
         )
 
-    return pages
+    return pages, configs
 
 
 def feature_pages(features: EnabledFeature):
     pages = {}
 
     if features.ai4s:
-        from contrail.webapp import webapp_ai4s, webapp_fee
+        from contrail.webapp.ai4s_tasks import webapp_ai4s
+        from contrail.webapp.fee import webapp_fee
 
         pages["AI4S"] = [
             st.Page(webapp_ai4s, title="AI4S 任务列表", url_path="ai4s"),
@@ -87,7 +91,7 @@ def feature_pages(features: EnabledFeature):
         ]
 
     if features.user_info and features.name_dict:
-        from contrail.webapp import webapp_user_info
+        from contrail.webapp.user_info import webapp_user_info
 
         pages["Info"] = [
             st.Page(webapp_user_info, title="用户信息查询", url_path="user_info"),
@@ -115,16 +119,17 @@ def main():
 
     pages = {"Home": []}
 
-    pages |= device_pages(devices, features)
+    device_p, device_conf = device_pages(devices, features)
+    pages |= device_p
 
     pages |= feature_pages(features)
 
-    pages["Home"].append(st.Page(HomePage(pages), title="Contrail 主页", url_path="home"))
+    pages["Home"].append(st.Page(HomePage(pages, device_conf, features), title="Contrail 主页", url_path="home"))
 
     st.html(
         """<style>
-        /* auto-refresh 隐藏 */
-        .stElementContainer:has(.stCustomComponentV1),
+        /* auto-refresh, javascript 隐藏 */
+        .stElementContainer:has(.stCustomComponentV1[title="streamlit_autorefresh.st_autorefresh"], .stCustomComponentV1[title="streamlit_javascript.streamlit_javascript"]),
         .stElementContainer:has(.stHtml) {
             position:absolute !important;
             opacity: 0;
@@ -133,21 +138,6 @@ def main():
         div[data-testid="stSidebarCollapsedControl"] button {
             margin: -6px 0px -6px -45px;
             padding: 10px 10px 10px 50px;
-        }
-        /* 主页 - 设备标题 */
-        .stColumn:has(a[data-testid="stPageLink-NavLink"]) h3 {
-            padding-top: 0px;
-        }
-        /* 主页 - 设备操作按钮 */
-        .stColumn a[data-testid="stPageLink-NavLink"] {
-            background-color: #aaa2;
-            justify-content: center;
-        }
-        /* 主页 - column 修改 */
-        @media (max-width: 640px) {
-            .stColumn:has(a[data-testid="stPageLink-NavLink"]) .stColumn {
-                min-width: calc(50% - 1rem);
-            }
         }
         </style>"""
     )

@@ -37,6 +37,7 @@
         "devices": {
             "Leo": {
                 "hostname": "Leo",
+                "gpu_type": "A6000",
                 "config": {
                     "DURATION": 30,
                     "N_GPU": 8,
@@ -46,6 +47,7 @@
             },
             "Virgo": {
                 "hostname": "Virgo",
+                "gpu_type": "A6000",
                 "config": {
                     "DURATION": 30,
                     "N_GPU": 8,
@@ -55,6 +57,7 @@
             },
             "Libra": {
                 "hostname": "Libra",
+                "gpu_type": "A6000",
                 "config": {
                     "DURATION": 30,
                     "N_GPU": 8,

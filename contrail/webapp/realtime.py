@@ -46,6 +46,17 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
     if not_pc:
         DURATION = DURATION / 2
 
+    st.html(
+        """<style>
+        /* column 修改 */
+        @media (max-width: 640px) {
+            .stColumn {
+                min-width: calc(50% - 1rem);
+            }
+        }
+        </style>"""
+    )
+
     st.title(f"{hostname}: 实时状态")
 
     col1, col2, col3 = st.columns([4, 11, 1], vertical_alignment="center")
@@ -90,59 +101,58 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
     # 如果没有数据，提示用户
     if gpu_utilization_df.empty:
         st.warning(f"过去 {DURATION} 秒内没有 GPU 数据记录：GPU 监控程序可能离线。")
-    else:
-        panel_container = st.container()
+        return
 
-        st.divider()
+    panel_container = st.container()
 
-        axis_end = dt.datetime.now() - dt.timedelta(seconds=1)
-        axis_start = axis_end - dt.timedelta(seconds=DURATION)
-        axis_x = (
-            alt.X("timestamp:T").axis(labelSeparation=10).title(None).scale(alt.Scale(domain=(axis_start, axis_end)))
-        )
-        gpu_color = alt.Color("gpu_index:N").title("GPU").scale(domain=range(N_GPU), range=COLOR_SCHEME)
-        gpu_opacity = alt.Opacity("gpu_index:N").title("GPU")
-        user_color = alt.Color("user:N").title("用户").scale(range=COLOR_SCHEME)
+    st.divider()
 
-        nearest = alt.selection_point(nearest=True, on="pointerover", fields=["timestamp"], empty=False)
-        when_near = alt.when(nearest)
-        gpu_tooltips = [alt.Tooltip(str(i), type="quantitative") for i in range(N_GPU)]
+    axis_end = dt.datetime.now() - dt.timedelta(seconds=1)
+    axis_start = axis_end - dt.timedelta(seconds=DURATION)
+    axis_x = alt.X("timestamp:T").axis(labelSeparation=10).title(None).scale(alt.Scale(domain=(axis_start, axis_end)))
+    gpu_color = alt.Color("gpu_index:N").title("GPU").scale(domain=range(N_GPU), range=COLOR_SCHEME)
+    gpu_opacity = alt.Opacity("gpu_index:N").title("GPU")
+    user_color = alt.Color("user:N").title("用户").scale(range=COLOR_SCHEME)
 
-        if not_pc:
-            gpu_color = gpu_color.legend(orient="bottom", titleOrient="left", columns=4)
-            # gpu_opacity = gpu_opacity.legend(orient="bottom", titleOrient="left", columns=4)
-            # user_color = user_color.legend(orient="top", titleOrient="left", columns=4)
+    nearest = alt.selection_point(nearest=True, on="pointerover", fields=["timestamp"], empty=False)
+    when_near = alt.when(nearest)
+    gpu_tooltips = [alt.Tooltip(str(i), type="quantitative") for i in range(N_GPU)]
 
-        load_value(f"selection_realtime_{hostname}")
-        select = st.pills(
-            "信息选择",
-            ["**详细信息**", "**用户使用**", "**汇总数据**"],
-            label_visibility="collapsed",
-            selection_mode="single",
-            key=f"selection_realtime_{hostname}",
-            on_change=store_value,
-            args=[f"selection_realtime_{hostname}"],
-        )
+    if not_pc:
+        gpu_color = gpu_color.legend(orient="bottom", titleOrient="left", columns=4)
+        # gpu_opacity = gpu_opacity.legend(orient="bottom", titleOrient="left", columns=4)
+        # user_color = user_color.legend(orient="top", titleOrient="left", columns=4)
 
-        try:
-            if select == "**详细信息**":
-                gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
-                gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
-            elif select == "**用户使用**":
-                user_gpu_df = query_user_gpu_realtime_usage(start_time, end_time, DB_PATH)
-                user_gpu_memory_df = query_user_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
-            elif select == "**汇总数据**":
-                gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
-                gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
+    load_value(f"selection_realtime_{hostname}")
+    select = st.pills(
+        "信息选择",
+        ["**详细信息**", "**用户使用**", "**汇总数据**"],
+        label_visibility="collapsed",
+        selection_mode="single",
+        key=f"selection_realtime_{hostname}",
+        on_change=store_value,
+        args=[f"selection_realtime_{hostname}"],
+    )
 
-        except Exception as e:
-            st.error(f"查询数据时出现错误：{e}")
-            logger.error(f"Error querying realtime details: {e}")
-            return
+    try:
+        if select == "**详细信息**":
+            gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
+            gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
+        elif select == "**用户使用**":
+            user_gpu_df = query_user_gpu_realtime_usage(start_time, end_time, DB_PATH)
+            user_gpu_memory_df = query_user_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
+        elif select == "**汇总数据**":
+            gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
+            gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
 
-        finally:
-            with panel_container:
-                status_panel(gpu_current_df, N_GPU=N_GPU, GMEM=GMEM)
+    except Exception as e:
+        st.error(f"查询数据时出现错误：{e}")
+        logger.error(f"Error querying realtime details: {e}")
+        return
+
+    finally:
+        with panel_container:
+            status_panel(gpu_current_df, N_GPU=N_GPU, GMEM=GMEM)
 
         if select == "**详细信息**":
             # GPU 每台设备的利用率折线图
