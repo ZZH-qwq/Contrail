@@ -43,13 +43,17 @@ class HomePage:
         webapp_homepage(self.pages, self.configs, self.features)
 
 
-@st.cache_data
-def device_status(device, timestamp: str):
+def device_status(device, timestamp: str, features: dict):
     name = device.hostname
     db_path = device.realtime_db_path
     gpu = device.gpu_type
     n_gpu = device.config["N_GPU"]
     gmem = device.config["GMEM"]
+
+    if features.history_only:
+        st.subheader(name)
+        st.caption(f"{n_gpu} × {gpu} {gmem}G")
+        return None
 
     try:
         gpu_current_df = query_latest_gpu_info(db_path, timestamp)
@@ -74,26 +78,26 @@ def device_card_pc(device, features, pages):
     cont1, cont2 = st.columns([3, 2], vertical_alignment="center")
 
     with cont1:
-        current_timestamp = device_status(device, dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        current_timestamp = device_status(device, dt.datetime.now().strftime("%Y-%m-%d %H:%M"), features)
 
     if not features.history_only:
         cont2.page_link(pages[device.hostname][0], label="实时状态", use_container_width=True)
         cont2.page_link(pages[device.hostname][1], label="历史信息", use_container_width=True)
     else:
-        st.page_link(pages[device.hostname][1], label="历史信息", use_container_width=True)
+        cont2.page_link(pages[device.hostname][0], label="历史信息", use_container_width=True)
 
     return current_timestamp
 
 
 def device_card_mobile(device, features, pages):
-    current_timestamp = device_status(device, dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
+    current_timestamp = device_status(device, dt.datetime.now().strftime("%Y-%m-%d %H:%M"), features)
 
     if not features.history_only:
         col1, col2 = st.columns(2)
         col1.page_link(pages[device.hostname][0], label="实时状态", use_container_width=True)
         col2.page_link(pages[device.hostname][1], label="历史信息", use_container_width=True)
     else:
-        st.page_link(pages[device.hostname][1], label="历史信息", use_container_width=True)
+        st.page_link(pages[device.hostname][0], label="历史信息", use_container_width=True)
 
     return current_timestamp
 
@@ -167,11 +171,12 @@ def webapp_homepage(pages, configs, features):
                 timestamp = device_card(configs_list[i + j], features, pages)
                 times.append(timestamp)
 
-    times = [dt.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") for ts in times]
-    min_time = min(times).strftime("%Y-%m-%d %H:%M")
-    max_time = max(times).strftime("%Y-%m-%d %H:%M")
+    if not features.history_only:
+        times = [dt.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") for ts in times]
+        min_time = min(times).strftime("%Y-%m-%d %H:%M")
+        max_time = max(times).strftime("%Y-%m-%d %H:%M")
 
-    col2.write(f"{min_time} / {max_time}")
+        col2.write(f"{min_time} / {max_time}")
 
     st.subheader("AI4S 平台")
 
