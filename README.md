@@ -84,9 +84,92 @@ Contrail 是一个简单易用的服务器资源和计算平台监控工具。�
 
 ## 部署方式
 
-> TBD
+### 主设备
+
+根据需要运行的监控项目安装对应的依赖：
+
+```bash
+pip install -e .[ai4s,web]
+```
+
+同时在 `config/host_config.json` 中配置主设备的相关信息。
+
+
+### 主设备 - AI4S
+
+> [!NOTE]
+> ai4s 未来也会提供配置文件模板，因此AI4S相关命令仅为临时方案
+
+获取 cookies：
+
+```bash
+python -m contrail.ai4s.ai4s_login --url http://aiplatform.ai4s.sjtu.edu.cn/bml/project/...
+```
+
+然后在 `screenshoots/body.png` 下查看验证码和动态口令二维码
+
+> [!NOTE]
+> TODO：chromedriver 的路径未来将会由配置文件提供
+
+将与浏览器对应的 chromedriver 放在 `resource/chromedriver` 下。
+
+
+### socket 设备
+
+仅需安装基本的依赖：
+
+```bash
+pip install -e .
+```
+
+同时在 `config/sender_config.json` 中配置相关信息。
 
 
 ## 使用说明
 
-> TBD
+### 主设备
+
+启动 web 应用：
+
+```bash
+streamlit run webapp.py --server.port 3333
+```
+
+启动监控：
+
+```bash
+contrail monitor
+```
+
+在运行过程中：
+
+```bash
+list                  # 列出所有被监控的设备
+remove <device_name>  # 移除被监控的设备
+reload                # 重新加载配置文件
+exit                  # 退出监控
+```
+
+例如，若需要更新已有设备的配置，可以直接修改 `config/host_config.json` 中的相关信息，然后运行：
+
+```bash
+remove <device_name>
+reload
+```
+
+### 主设备 - AI4S
+
+
+运行监控：
+
+```bash
+python -m contrail.ai4s.ai4s_execute --url http://aiplatform.ai4s.sjtu.edu.cn/bml/project/model-train/notebook/...
+```
+
+### socket 设备
+
+连接到主设备
+
+```bash
+contrail sender
+```
