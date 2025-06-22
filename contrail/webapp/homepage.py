@@ -27,7 +27,11 @@ def load_ai4s_result(file="data/ai4s_data.json"):
         return None
 
     with open(file, "r") as f:
-        result = json.load(f)
+        try:
+            result = json.load(f)
+        except Exception as e:
+            st.error(e)
+            return None
 
     return result
 
