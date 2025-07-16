@@ -59,87 +59,6 @@ def set_filter(driver):
     screenshot(driver)
 
 
-def handle_row(driver, row):
-    logger.trace("Handling row")
-    task = {}
-
-    assert driver.current_url.find("notebook/org") != -1, "Not in the correct page"
-    curr_tab = driver.current_window_handle
-
-    try:
-
-        task_name = row.find_element(By.CSS_SELECTOR, "td:nth-child(2)").text
-        task["task_name"] = task_name
-
-        active_time = row.find_element(By.CSS_SELECTOR, "td:nth-child(5)").text
-        task["active_time"] = active_time
-
-        resource = row.find_element(By.CSS_SELECTOR, "td:nth-child(6)").text.replace("\n", " ")
-
-        task["cpus"] = resource.split(" ")[0].split("：")[1]
-        task["gpu_type"] = resource.split("：")[2].split(" / ")[0]
-        task["gpu_count"] = resource.split(" / ")[1].split(" ")[0]
-        task["memory"] = resource.split("：")[3]
-
-        user = row.find_element(By.CSS_SELECTOR, "td:nth-last-child(2)").text
-        task["user"] = user
-        logger.info(f"Task: {task_name}, User: {user}")
-        logger.info(f"Resource: {resource}")
-
-        view_button = row.find_element(By.CSS_SELECTOR, "td:last-child > div > .table-action:nth-child(1)")
-        view_button.send_keys(Keys.CONTROL + Keys.RETURN)
-        driver.switch_to.window(driver.window_handles[-1])
-
-        # 检测是否是正确的页面
-        idx = -1
-        timestamp = time.time()
-        while (
-            driver.current_url.find("notebook/detail") == -1
-            and idx > -1 * len(driver.window_handles)
-            and (time.time() - timestamp) < 10
-        ):
-            idx -= 1
-            driver.switch_to.window(driver.window_handles[idx])
-
-        if driver.current_url.find("notebook/detail") == -1:
-            logger.warning("Page navigation failed")
-            return None
-
-        # 清除控制台日志
-        driver.execute_script("console.clear();")
-        time.sleep(0.5)
-
-        json_data = check_respond(driver)
-        if json_data:
-            task["data"] = json_data
-
-        # 获取开始时间
-        start_time = driver.find_element(
-            By.CSS_SELECTOR,
-            ".mf-notebook-detail-box.aibp-detail-container div.ant-spin-container > div > div .aibp-detail-section:nth-child(1) .du-gridview > .du-gridview-row:nth-child(2) > .ant-col.ant-col-8:nth-child(1) div.du-gridview-row-content",
-        ).text
-        task["start_time"] = start_time
-
-        # driver.switch_to.window(driver.window_handles[-1])
-        # idx = -1
-        # while driver.current_url.find("notebook/org") == -1 and idx > -1 * len(driver.window_handles):
-        #     idx -= 1
-        #     driver.switch_to.window(driver.window_handles[idx])
-
-    except Exception as e:
-        logger.error(f"Error handling row: {e}")
-        return None
-
-    finally:
-        if len(driver.window_handles) > 1 and driver.current_url.find("notebook/detail") != -1:
-            driver.close()
-        driver.switch_to.window(curr_tab)
-
-    screenshot(driver)
-
-    return task
-
-
 def close_row(driver, row):
     logger.trace("Closing row")
     try:
@@ -164,139 +83,344 @@ def check_respond(driver, timeout=10):
 
     start_time = time.time()
     while (time.time() - start_time) < timeout:
-        screenshot(driver)
+        try:
+            screenshot(driver)
 
-        logs = driver.get_log("performance")
-        for entry in logs:
-            log = json.loads(entry["message"])["message"]
+            logs = driver.get_log("performance")
+            for entry in logs:
+                log = json.loads(entry["message"])["message"]
 
-            if log["method"] != "Network.responseReceived":
-                continue
+                if log["method"] != "Network.responseReceived":
+                    continue
 
-            response = log["params"]["response"]
-            url = response["url"]
-            content_type = response["mimeType"]
+                response = log["params"]["response"]
+                url = response["url"]
+                content_type = response["mimeType"]
 
-            # 筛选出目标请求：URL 和内容类型匹配
-            if "monitor/api/ds/query" in url and "application/json" in content_type:
-                # 获取响应的内容（数据），通过 requestId ��调用 getResponseBody
-                request_id = log["params"]["requestId"]
+                # 筛选出目标请求：URL 和内容类型匹配
+                if "monitor/api/ds/query" in url and "application/json" in content_type:
+                    # 获取响应的内容（数据），通过 requestId 调用 getResponseBody
+                    request_id = log["params"]["requestId"]
 
-                # 使用 DevTools 获取响应体
-                response_body = driver.execute_cdp_cmd("Network.getResponseBody", {"requestId": request_id})
-                body_data = response_body.get("body", "")
-
-                if response_body:
+                    # 使用 DevTools 获取响应体
                     try:
-                        # 将解码后的字符串转换为 JSON 格式
-                        json_data = json.loads(body_data)
+                        response_body = driver.execute_cdp_cmd("Network.getResponseBody", {"requestId": request_id})
+                        body_data = response_body.get("body", "")
 
-                        query_string = json_data["results"]["A"]["frames"][0]["schema"]["meta"]["executedQueryString"]
+                        if response_body:
+                            try:
+                                # 将解码后的字符串转换为 JSON 格式
+                                json_data = json.loads(body_data)
 
-                        if "container_accelerator_duty_cycle" in query_string:
-                            data["accelerator_duty_cycle"] = json_data["results"]["A"]["frames"][0]["data"]
-                        elif "container_accelerator_memory_used_bytes" in query_string:
-                            data["accelerator_memory_used_bytes"] = json_data["results"]["A"]["frames"][0]["data"]
-                        else:
-                            continue
+                                query_string = json_data["results"]["A"]["frames"][0]["schema"]["meta"][
+                                    "executedQueryString"
+                                ]
 
-                        if "accelerator_duty_cycle" in data and "accelerator_memory_used_bytes" in data:
-                            return data
+                                if "container_accelerator_duty_cycle" in query_string:
+                                    data["accelerator_duty_cycle"] = json_data["results"]["A"]["frames"][0]["data"]
+                                elif "container_accelerator_memory_used_bytes" in query_string:
+                                    data["accelerator_memory_used_bytes"] = json_data["results"]["A"]["frames"][0][
+                                        "data"
+                                    ]
+                                else:
+                                    continue
 
-                    except json.JSONDecodeError as e:
-                        logger.error(f"Error parsing JSON data: {e}")
+                                if "accelerator_duty_cycle" in data and "accelerator_memory_used_bytes" in data:
+                                    return data
+
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Error parsing JSON data: {e}")
+                    except Exception as e:
+                        logger.error(f"Error getting response body: {e}")
+                        continue
+
+        except Exception as e:
+            logger.error(f"Error checking response, session may be invalid: {e}")
+            return None
 
         time.sleep(0.5)
 
     return None
 
 
-def execute(target_url):
-    logger.info("Executing main function")
-    # 设置ChromeDriver
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--enable-logging")
-    chrome_options.add_argument("--auto-open-devtools-for-tabs")
-    service = Service("resource/chromedriver")
+class WebDriverManager:
+    def __init__(self, target_url):
+        self.target_url = target_url
+        self.driver = None
+        self.chrome_options = None
+        self.service = None
+        self._setup_options()
 
-    # 启用 Performance Logging
-    chrome_options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+    def _setup_options(self):
+        """设置Chrome选项"""
+        self.chrome_options = Options()
+        self.chrome_options.add_argument("--headless")
+        self.chrome_options.add_argument("--enable-logging")
+        self.chrome_options.add_argument("--auto-open-devtools-for-tabs")
 
-    driver = None
+        self.service = Service("resource/chromedriver")
+
+        # 启用 Performance Logging
+        self.chrome_options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+
+    def _create_driver(self, retries=2):
+        """创建新的WebDriver实例，带重试逻辑"""
+        logger.info("Creating new WebDriver instance")
+        last_exception = None
+        for attempt in range(1, retries + 1):
+            try:
+                if self.driver:
+                    try:
+                        self.driver.quit()
+                    except Exception:
+                        pass
+
+                self.driver = webdriver.Chrome(service=self.service, options=self.chrome_options)
+                self.driver.set_window_size(1920, 2333)
+                logger.info(f"WebDriver created successfully on attempt {attempt}")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to create WebDriver on attempt {attempt}: {e}")
+                last_exception = e
+                time.sleep(1)
+        logger.error(f"All {retries} attempts to create WebDriver failed: {last_exception}")
+        return False
+
+    def _login(self):
+        """执行登录流程"""
+        try:
+            # 读取并修改Cookie的到期时间
+            with open(COOKIE_FILE, "r") as file:
+                cookies = json.loads(file.read())
+
+            # 修改Cookie的到期时间为当前时间 + 30 天
+            new_expiry_time = int(time.time()) + 86400 * 30
+            for cookie in cookies:
+                if "expiry" in cookie:
+                    cookie["expires"] = new_expiry_time
+
+            # 打开目标网站以初始化session
+            self.driver.get("http://aiplatform.ai4s.sjtu.edu.cn/")
+            time.sleep(0.5)
+
+            # 添加Cookie到浏览器
+            for cookie in cookies:
+                self.driver.add_cookie(cookie)
+
+            # 再次访问目标网站
+            self.driver.get(self.target_url)
+            time.sleep(2)
+
+            # 检查登录状态
+            logger.info(f"Page title: {self.driver.title}")
+            logger.info(f"Current URL: {self.driver.current_url}")
+
+            if self.driver.current_url.find("login?projectType=NORMAL") != -1:
+                logger.error("Login failed")
+                return False
+
+            logger.info("Login successful")
+            return True
+        except Exception as e:
+            logger.error(f"Login failed: {e}")
+            return False
+
+    def is_session_valid(self):
+        """检查WebDriver会话是否有效"""
+        if not self.driver:
+            return False
+        try:
+            # 尝试获取当前URL
+            _ = self.driver.current_url
+            return True
+        except Exception as e:
+            if "invalid session id" in str(e) or "session deleted" in str(e):
+                return False
+            return True
+
+    def ensure_session(self):
+        """确保会话有效，如果无效则重新创建"""
+        if not self.is_session_valid():
+            logger.warning("WebDriver session is invalid, recreating...")
+            if self._create_driver() and self._login():
+                # 重新设置筛选条件
+                try:
+                    set_filter(self.driver)
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to set filter after session recreation: {e}")
+                    return False
+            return False
+        return True
+
+    def get_driver(self):
+        """获取有效的WebDriver实例"""
+        if self.ensure_session():
+            return self.driver
+        return None
+
+    def close(self):
+        """安全关闭WebDriver"""
+        if self.driver:
+            try:
+                self.driver.quit()
+            except Exception as e:
+                logger.error(f"Error closing WebDriver: {e}")
+        self.driver = None
+
+
+def collect_task_basic_info(driver, row):
+    """收集任务的基本信息和详情页链接"""
     try:
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        task = {}
 
-        time.sleep(1)
+        task_name = row.find_element(By.CSS_SELECTOR, "td:nth-child(2)").text
+        task["task_name"] = task_name
 
-        driver.set_window_size(1920, 2333)
+        active_time = row.find_element(By.CSS_SELECTOR, "td:nth-child(5)").text
+        task["active_time"] = active_time
 
-        # 读取并修改Cookie的到期时间
-        with open(COOKIE_FILE, "r") as file:
-            cookies = json.loads(file.read())
+        resource = row.find_element(By.CSS_SELECTOR, "td:nth-child(6)").text.replace("\n", " ")
+        task["cpus"] = resource.split(" ")[0].split("：")[1]
+        task["gpu_type"] = resource.split("：")[2].split(" / ")[0]
+        task["gpu_count"] = resource.split(" / ")[1].split(" ")[0]
+        task["memory"] = resource.split("：")[3]
 
-        # 修改Cookie的到期时间为当前时间 + 30 天
-        new_expiry_time = int(time.time()) + 86400 * 30
-        for cookie in cookies:
-            if "expiry" in cookie:
-                cookie["expires"] = new_expiry_time
+        user = row.find_element(By.CSS_SELECTOR, "td:nth-last-child(2)").text
+        task["user"] = user
 
-        # 打开目标网站以初始化session
-        driver.get("http://aiplatform.ai4s.sjtu.edu.cn/")
-        time.sleep(0.5)  # 等待页面加载
+        # 获取详情页链接
+        view_button = row.find_element(By.CSS_SELECTOR, "td:last-child > div > .table-action:nth-child(1)")
+        detail_link = view_button.get_attribute("href")
+        task["detail_link"] = detail_link
 
-        # 添加Cookie到浏览器
-        for cookie in cookies:
-            driver.add_cookie(cookie)
+        logger.info(f"Collected basic info for task: {task_name}, User: {user}")
+        logger.info(f"Resource: {resource}")
 
-        # 再次访问目标网站
-        driver.get(target_url)
-        time.sleep(2)  # 等待页面加载完成
+        return task
+    except Exception as e:
+        logger.error(f"Error collecting basic task info: {e}")
+        return None
 
-        # 检查加载结果
-        logger.info(f"Page title: {driver.title}")
-        logger.info(f"Current URL: {driver.current_url}")
 
+def get_task_detail_info(driver_manager, task):
+    """获取任务的详细信息（开始时间和性能数据）"""
+    if not task or not task.get("detail_link"):
+        return task
+
+    try:
+        driver = driver_manager.get_driver()
+        if not driver:
+            logger.error("No valid driver available for detail collection")
+            return task
+
+        # 导航到详情页
+        driver.get(task["detail_link"])
+        time.sleep(2)
         screenshot(driver)
-        if driver.current_url.find("login?projectType=NORMAL") != -1:
-            logger.error("Login failed")
-            raise Exception("登录失败，请检查Cookie是否过期！")
 
-        logger.info("Login successful")
+        # 获取开始时间
+        try:
+            start_time = driver.find_element(
+                By.CSS_SELECTOR,
+                ".mf-notebook-detail-box.aibp-detail-container div.ant-spin-container > div > div .aibp-detail-section:nth-child(1) .du-gridview > .du-gridview-row:nth-child(2) > .ant-col.ant-col-8:nth-child(1) div.du-gridview-row-content",
+            ).text
+            task["start_time"] = start_time
+        except Exception as e:
+            logger.warning(f"Failed to get start_time for {task['task_name']}: {e}")
+            task["start_time"] = "N/A"
+
+        # 获取性能数据
+        try:
+            driver.execute_script("console.clear();")
+            time.sleep(0.5)
+            json_data = check_respond(driver)
+            if json_data:
+                task["data"] = json_data
+                logger.info(f"Successfully collected performance data for {task['task_name']}")
+            else:
+                logger.warning(f"No performance data found for {task['task_name']}")
+        except Exception as e:
+            logger.warning(f"Failed to get performance data for {task['task_name']}: {e}")
+
+        return task
+
+    except Exception as e:
+        logger.error(f"Error getting task detail info for {task.get('task_name', 'unknown')}: {e}")
+        return task
+
+
+def execute(target_url):
+    logger.info("Executing main function with two-phase processing to preserve filter state")
+
+    # 创建WebDriver管理器
+    driver_manager = WebDriverManager(target_url)
+
+    try:
+        # 初始化WebDriver和登录
+        if not driver_manager._create_driver():
+            logger.error("Failed to create initial WebDriver")
+            return None
+
+        if not driver_manager._login():
+            logger.error("Failed to login")
+            return None
 
         # 设置筛选条件
+        driver = driver_manager.get_driver()
+        if not driver:
+            return None
+
         set_filter(driver)
 
-        # 如果 .mf-notebook-list .ant-table-default .ant-table-placeholder 存在，则说明没有数据
+        # 检查是否有数据
         if driver.find_elements(By.CSS_SELECTOR, ".mf-notebook-list .ant-table-default .ant-table-placeholder"):
             logger.info("No data found")
             return {"state": "success"}
 
-        else:
-            data = {"state": "success"}
-            rows = driver.find_elements(By.CSS_SELECTOR, ".mf-notebook-list .ant-table-tbody .ant-table-row-level-0")
+        # 第一阶段：收集所有任务的基本信息和详情页链接
+        logger.info("Phase 1: Collecting basic information for all tasks")
+        rows = driver.find_elements(By.CSS_SELECTOR, ".mf-notebook-list .ant-table-tbody .ant-table-row-level-0")
+        tasks_basic_info = []
 
-            for i, row in enumerate(rows):
-                task = handle_row(driver, row)
-                data[i] = task
+        for i, row in enumerate(rows):
+            logger.info(f"Collecting basic info for row {i + 1}/{len(rows)}")
 
-                if task is None or "data" not in task:
-                    data["state"] = "failed"
+            # 收集基本信息
+            task_info = collect_task_basic_info(driver, row)
+            if task_info:
+                tasks_basic_info.append((i, task_info))
+            else:
+                logger.warning(f"Failed to collect basic info for row {i}")
 
-            # for row in rows:
-            #     close_row(driver, row)
+            time.sleep(0.5)
 
-            return data
+        logger.info(f"Phase 1 completed: collected {len(tasks_basic_info)} tasks")
+
+        # 第二阶段：获取每个任务的详细信息
+        logger.info("Phase 2: Collecting detailed information for each task")
+        data = {"state": "success"}
+
+        for i, task_info in tasks_basic_info:
+            logger.info(f"Getting details for task {i + 1}/{len(tasks_basic_info)}: {task_info['task_name']}")
+
+            # 获取详细信息
+            complete_task = get_task_detail_info(driver_manager, task_info)
+            data[i] = complete_task
+
+            if complete_task is None or "data" not in complete_task:
+                data["state"] = "failed"
+                logger.warning(f"Failed to get complete data for task: {task_info['task_name']}")
+
+        logger.info(f"Phase 2 completed: processed {len(tasks_basic_info)} tasks")
+        return data
 
     except Exception as e:
         logger.error(f"Error executing main function: {e}")
         return None
 
     finally:
-        logger.trace("Closing browser")
-        if driver is not None:
-            # 关闭浏览器
-            driver.quit()
+        driver_manager.close()
 
 
 def job(target_url):
@@ -328,7 +452,7 @@ if __name__ == "__main__":
     schedule.every(args.interval).minutes.do(job, args.url)
 
     try:
-        # job(args.url)
+        job(args.url)
 
         while True:
             schedule.run_pending()
