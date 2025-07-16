@@ -200,8 +200,9 @@ def webapp_homepage(pages, configs, features):
         else:
             st.warning("最近完成的任务运行失败。")
 
-    st.subheader("用户信息")
+    if features.user_info and features.name_dict:
+        st.subheader("用户信息")
 
-    stcol = st.columns([1, 3])
+        stcol = st.columns([1, 3])
 
-    stcol[0].page_link(pages["Info"][0], label="用户信息查询", use_container_width=True)
+        stcol[0].page_link(pages["Info"][0], label="用户信息查询", use_container_width=True)
