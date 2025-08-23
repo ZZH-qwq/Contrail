@@ -6,8 +6,7 @@ import datetime as dt
 import json
 import os
 
-if os.getenv("ENABLE_NAME_DICT", "0") == "1":
-    from contrail.utils.name_dict import NAME_DICT_FEE
+from contrail.utils import query_ai4s_username
 
 
 def read_json_result(file="data/ai4s_data.json", display_warning=True):
@@ -43,10 +42,7 @@ def display_data(i, task, key="last"):
     basics, times, resources = st.columns([3, 3, 2], vertical_alignment="bottom")
 
     with basics:
-        if os.getenv("ENABLE_NAME_DICT", "0") == "1":
-            user = NAME_DICT_FEE.get(task["user"], task["user"])
-        else:
-            user = task["user"]
+        user = query_ai4s_username(task["user"])
         st.markdown(f"#### {task['task_name']}  \n创建者: **:blue[{user}]**")
 
     with times:

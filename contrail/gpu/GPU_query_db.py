@@ -8,10 +8,6 @@ import streamlit as st
 from typing import Optional, Tuple, Dict
 
 
-if os.getenv("ENABLE_NAME_DICT", "0") == "1":
-    from contrail.utils.name_dict import dict_username
-
-
 @st.cache_data
 def query_latest_gpu_info(db_path: str, query_tm: Optional[str] = None) -> pd.DataFrame:
     """

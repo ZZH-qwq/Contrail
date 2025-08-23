@@ -34,6 +34,13 @@
             "name_dict": false,
             "history_only": false
         },
+        "assets": {
+            "homepage_md": "resource/homepage_info.md",
+            "name_dict_files": {
+                "server": "resource/users_usernames.csv",
+                "ai4s": "resource/users_ai4s.csv"
+            }
+        },
         "devices": {
             "Leo": {
                 "hostname": "Leo",

@@ -6,16 +6,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from contrail.gpu.GPU_query_db import query_latest_gpu_info
-
-
-@st.cache_data
-def load_config(config_path: str = "config/host_config.json") -> dict:
-    """
-    Load the configuration file.
-    """
-    with open(config_path, "r") as f:
-        config = json.load(f)
-    return config["webapp"]
+from contrail.utils import enabled_features, webapp_config
 
 
 def load_ai4s_result(file="data/ai4s_data.json"):
@@ -37,24 +28,34 @@ def load_ai4s_result(file="data/ai4s_data.json"):
 
 
 class HomePage:
-    def __init__(self, pages, configs, features):
+    def __init__(self, pages, configs):
         self.pages = pages
         self.configs = configs
-        self.features = features
         self.__name__ = "homepage"
+        self.md_content = self.load_md()
+
+    def load_md(self):
+        if "assets" in webapp_config and "homepage_md" in webapp_config["assets"]:
+            md_file = webapp_config["assets"]["homepage_md"]
+            if md_file and os.path.exists(md_file):
+                with open(md_file, "r") as f:
+                    return f.read()
+            else:
+                raise FileNotFoundError(f"Homepage markdown file '{md_file}' not found.")
+        return None
 
     def __call__(self):
-        webapp_homepage(self.pages, self.configs, self.features)
+        webapp_homepage(self.pages, self.configs, self.md_content)
 
 
-def device_status(device, timestamp: str, features: dict):
+def device_status(device, timestamp: str):
     name = device.hostname
     db_path = device.realtime_db_path
     gpu = device.gpu_type
     n_gpu = device.config["N_GPU"]
     gmem = device.config["GMEM"]
 
-    if features.history_only:
+    if enabled_features.history_only:
         st.subheader(name)
         st.caption(f"{n_gpu} × {gpu} {gmem}G")
         return None
@@ -78,13 +79,13 @@ def device_status(device, timestamp: str, features: dict):
     return current_timestamp
 
 
-def device_card_pc(device, features, pages):
+def device_card_pc(device, pages):
     cont1, cont2 = st.columns([3, 2], vertical_alignment="center")
 
     with cont1:
-        current_timestamp = device_status(device, dt.datetime.now().strftime("%Y-%m-%d %H:%M"), features)
+        current_timestamp = device_status(device, dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
 
-    if not features.history_only:
+    if not enabled_features.history_only:
         cont2.page_link(pages[device.hostname][0], label="实时状态", use_container_width=True)
         cont2.page_link(pages[device.hostname][1], label="历史信息", use_container_width=True)
     else:
@@ -93,10 +94,10 @@ def device_card_pc(device, features, pages):
     return current_timestamp
 
 
-def device_card_mobile(device, features, pages):
-    current_timestamp = device_status(device, dt.datetime.now().strftime("%Y-%m-%d %H:%M"), features)
+def device_card_mobile(device, pages):
+    current_timestamp = device_status(device, dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
 
-    if not features.history_only:
+    if not enabled_features.history_only:
         col1, col2 = st.columns(2)
         col1.page_link(pages[device.hostname][0], label="实时状态", use_container_width=True)
         col2.page_link(pages[device.hostname][1], label="历史信息", use_container_width=True)
@@ -106,7 +107,7 @@ def device_card_mobile(device, features, pages):
     return current_timestamp
 
 
-def webapp_homepage(pages, configs, features):
+def webapp_homepage(pages, configs, md_content=None):
     """
     首页
     """
@@ -151,11 +152,14 @@ def webapp_homepage(pages, configs, features):
 
     col1, col2, col3 = st.columns([4, 11, 1], vertical_alignment="center")
 
-    col1.checkbox("自动刷新", key="ai4s_autorefresh", value=True)
+    col1.checkbox("自动刷新", key="homepage_autorefresh", value=True)
 
     with col3:
-        if st.session_state["ai4s_autorefresh"]:
-            st_autorefresh(interval=60000, key="ai4s_task_monitor")
+        if st.session_state["homepage_autorefresh"]:
+            st_autorefresh(interval=60000, key="homepage_task_monitor")
+
+    if md_content:
+        st.markdown(md_content)
 
     st.subheader("服务器列表")
 
@@ -172,10 +176,10 @@ def webapp_homepage(pages, configs, features):
             if i + j >= len(configs_list):
                 break
             with col:
-                timestamp = device_card(configs_list[i + j], features, pages)
+                timestamp = device_card(configs_list[i + j], pages)
                 times.append(timestamp)
 
-    if not features.history_only:
+    if not enabled_features.history_only:
         times = [dt.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") for ts in times]
         min_time = min(times).strftime("%Y-%m-%d %H:%M")
         max_time = max(times).strftime("%Y-%m-%d %H:%M")
@@ -200,7 +204,7 @@ def webapp_homepage(pages, configs, features):
         else:
             st.warning("最近完成的任务运行失败。")
 
-    if features.user_info and features.name_dict:
+    if enabled_features.user_info and enabled_features.name_dict:
         st.subheader("用户信息")
 
         stcol = st.columns([1, 3])

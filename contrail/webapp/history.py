@@ -6,6 +6,7 @@ import datetime as dt
 import numpy as np
 
 from contrail.gpu.GPU_query_db import *
+from contrail.utils import query_server_username
 
 
 def gpu_chart_band(df, y_label, N_GPU=8):
@@ -64,7 +65,7 @@ def gpu_chart_band(df, y_label, N_GPU=8):
     st.plotly_chart(fig, use_container_width=True, key=f"{y_label}_band")
 
 
-def gpu_chart_user(user_usage_grouped, y_label, name_dict=None, N_GPU=8):
+def gpu_chart_user(user_usage_grouped, y_label, db_path, N_GPU=8):
     # stack area chart for y_label
     # df["gpu_index"] = df["gpu_index"].astype(str)
     colors = px.colors.qualitative.Plotly
@@ -89,7 +90,7 @@ def gpu_chart_user(user_usage_grouped, y_label, name_dict=None, N_GPU=8):
 
     for i, (user, gpu_data) in enumerate(data.items()):
         color = ",".join([str(int(colors[i % tot_colors][j : j + 2], 16)) for j in (1, 3, 5)])
-        username = name_dict.get(user, user) if name_dict is not None else user
+        username = query_server_username(db_path, user)
         fig.add_trace(
             go.Scatter(
                 name=username,
@@ -322,21 +323,16 @@ def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db", config
                 st.subheader("显存用量 GB")
                 gpu_chart_band(gpu_usage_df, "used_memory", N_GPU)
             elif select == "**用户使用**":
-                if os.getenv("ENABLE_NAME_DICT", "0") == "1":
-                    name_dict = dict_username(DB_PATH)
-                else:
-                    name_dict = None
 
-                if name_dict is not None:
-                    user_total_df["user"] = user_total_df["user"].apply(lambda x: name_dict.get(x, x))
+                user_total_df["user"] = user_total_df["user"].apply(lambda x: query_server_username(DB_PATH, x))
 
                 st.subheader("用户使用率 %")
-                gpu_chart_user(user_usage_grouped, "gpu_utilization", name_dict, N_GPU)
+                gpu_chart_user(user_usage_grouped, "gpu_utilization", DB_PATH, N_GPU)
 
                 st.dataframe(user_total_df)
 
                 st.subheader("用户显存用量 GB")
-                gpu_chart_user(user_usage_grouped, "used_memory", name_dict, N_GPU)
+                gpu_chart_user(user_usage_grouped, "used_memory", DB_PATH, N_GPU)
 
             elif select == "**汇总数据**":
                 st.subheader("总使用率 %")

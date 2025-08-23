@@ -7,32 +7,8 @@ from loguru import logger
 from streamlit_javascript import st_javascript
 from user_agents import parse
 
-from contrail.webapp import webapp_realtime, webapp_history, HomePage, load_config
-
-
-@dataclass
-class EnabledFeature:
-    ai4s: bool = False
-    user_info: bool = False
-    name_dict: bool = False
-    history_only: bool = False
-
-
-@dataclass
-class PageConfig:
-    hostname: str
-    gpu_type: str
-    realtime_db_path: str = None
-    history_db_path: str = None
-    config: dict = None
-
-    def __post_init__(self):
-        if not self.realtime_db_path:
-            self.realtime_db_path = f"data/gpu_info_{self.hostname.lower()}.db"
-        if not self.history_db_path:
-            self.history_db_path = f"data/gpu_history_{self.hostname.lower()}.db"
-        if not self.config:
-            raise ValueError("Config must be provided.")
+from contrail.webapp import webapp_realtime, webapp_history, HomePage
+from contrail.utils import enabled_features, devices_config, PageConfig
 
 
 class DevicePage:
@@ -52,14 +28,14 @@ class DevicePage:
         )
 
 
-def device_pages(devices: dict, features: EnabledFeature):
+def device_pages():
     pages = {}
     configs = {}
 
-    for name, device_config in devices.items():
+    for name, device_config in devices_config.items():
         pages[name] = []
         configs[name] = PageConfig(**device_config)
-        if not features.history_only:
+        if not enabled_features.history_only:
             pages[name].append(
                 st.Page(
                     DevicePage(webapp_realtime, configs[name], is_realtime=True),
@@ -78,10 +54,10 @@ def device_pages(devices: dict, features: EnabledFeature):
     return pages, configs
 
 
-def feature_pages(features: EnabledFeature):
+def feature_pages():
     pages = {}
 
-    if features.ai4s:
+    if enabled_features.ai4s:
         from contrail.webapp.ai4s_tasks import webapp_ai4s
         from contrail.webapp.fee import webapp_fee
 
@@ -90,7 +66,7 @@ def feature_pages(features: EnabledFeature):
             st.Page(webapp_fee, title="AI4S 费用记录", url_path="ai4s_fee"),
         ]
 
-    if features.user_info and features.name_dict:
+    if enabled_features.user_info and enabled_features.name_dict:
         from contrail.webapp.user_info import webapp_user_info
 
         pages["Info"] = [
@@ -104,13 +80,6 @@ def main():
     st.set_page_config(page_icon="assets/logo/favicon.png")
     st.logo("assets/logo/logo_small.png", size="large")
 
-    config = load_config()
-
-    features = EnabledFeature(**config["features"])
-    devices = config["devices"]
-
-    os.environ["ENABLE_NAME_DICT"] = "1" if features.name_dict else "0"
-
     if os.getenv("CONTRAIL_LOGGER_ADDED", "0") == "0":
         logger.add(
             "log/webapp_{time:YYYY-MM-DD}.log", rotation="00:00", encoding="utf-8", retention="7 days", level="TRACE"
@@ -119,12 +88,12 @@ def main():
 
     pages = {"Home": []}
 
-    device_p, device_conf = device_pages(devices, features)
+    device_p, device_conf = device_pages()
     pages |= device_p
 
-    pages |= feature_pages(features)
+    pages |= feature_pages()
 
-    pages["Home"].append(st.Page(HomePage(pages, device_conf, features), title="Contrail 主页", url_path="home"))
+    pages["Home"].append(st.Page(HomePage(pages, device_conf), title="Contrail 主页", url_path="home"))
 
     st.html(
         """<style>

@@ -5,6 +5,7 @@ import altair as alt
 import datetime as dt
 
 from contrail.gpu.GPU_query_db import *
+from contrail.utils import query_server_username
 
 
 COLOR_SCHEME = px.colors.qualitative.Plotly
@@ -202,10 +203,8 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
             st.altair_chart(chart, use_container_width=True)
 
         elif select == "**用户使用**":
-            if os.getenv("ENABLE_NAME_DICT", "0") == "1":
-                user_dict = dict_username(DB_PATH)
-                user_gpu_df["user"] = user_gpu_df["user"].apply(lambda x: user_dict.get(x, x))
-                user_gpu_memory_df["user"] = user_gpu_memory_df["user"].apply(lambda x: user_dict.get(x, x))
+            user_gpu_df["user"] = user_gpu_df["user"].apply(lambda x: query_server_username(DB_PATH, x))
+            user_gpu_memory_df["user"] = user_gpu_memory_df["user"].apply(lambda x: query_server_username(DB_PATH, x))
 
             st.subheader("用户使用率 %")
             chart = (

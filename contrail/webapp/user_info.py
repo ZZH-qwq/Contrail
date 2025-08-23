@@ -1,40 +1,29 @@
 import streamlit as st
 import pandas as pd
 
-from contrail.utils.name_dict import NAME_DICT_FEE, dict_username
+from contrail.utils import enabled_features, server_users, ai4s_users
 
 
 @st.cache_data
-def convert_dict_to_df(dict_data):
+def filter_user(type: str = "server", input: str = "") -> pd.DataFrame:
     """
-    将字典转换为 DataFrame。
+    返回筛选后的用户信息
     """
-    df = pd.DataFrame.from_dict(dict_data, orient="index", columns=["用户信息"])
-    df.index.name = "用户名"
-    return df
-
-
-@st.cache_data
-def search_user(hostname, input=""):
-    """
-    查询用户信息。
-    """
-    dict_host = {
-        "leo": dict_username("leo.db"),
-        "virgo": dict_username("virgo.db"),
-        "ai4s": NAME_DICT_FEE,
-    }
-    user_df = pd.DataFrame.from_dict(dict_host[hostname], orient="index", columns=["用户信息"])
-    user_df.index.name = "用户名"
+    user_df = server_users if type == "server" else ai4s_users
 
     if input == "":
         return user_df
 
-    # search in both index and column
-    mask = user_df.index.str.contains(input, case=False)
-    mask |= user_df["用户信息"].str.contains(input, case=False)
+    # 模糊匹配
+    mask = user_df.apply(lambda row: row.astype(str).str.contains(input, case=False).any(), axis=1)
 
     return user_df[mask]
+
+
+def highlight_matches(input, s):
+    if input == "":
+        return ""
+    return "background-color: #FFFF0080" if input.lower() in str(s).lower() else ""
 
 
 def webapp_user_info():
@@ -45,17 +34,22 @@ def webapp_user_info():
 
     search_input = st.text_input("输入用户名或信息", "")
 
-    leo, virgo, ai4s = st.columns(3)
-
-    with leo:
-        st.subheader("Leo")
-        st.dataframe(search_user("leo", search_input), width=500)
-    with virgo:
-        st.subheader("Virgo")
-        st.dataframe(search_user("virgo", search_input), width=500)
-    with ai4s:
+    with st.container():
+        st.subheader("服务器用户")
+        st.dataframe(
+            filter_user("server", search_input).style.applymap(
+                lambda s: highlight_matches(search_input, s), subset=pd.IndexSlice[:, :]
+            ),
+            use_container_width=True,
+        )
+    with st.container():
         st.subheader("AI4S")
-        st.dataframe(search_user("ai4s", search_input), width=500)
+        st.dataframe(
+            filter_user("ai4s", search_input).style.applymap(
+                lambda s: highlight_matches(search_input, s), subset=pd.IndexSlice[:, :]
+            ),
+            use_container_width=True,
+        )
 
     with st.expander(""):
         st.caption("我超, 盒!")
