@@ -4,8 +4,11 @@ import sqlite3
 import pandas as pd
 import datetime as dt
 import streamlit as st
+import json
 
 from typing import Optional, Tuple, Dict
+
+MIN_TIMESTAMP_CACHE = "data/min_timestamp_cache.json"
 
 
 @st.cache_data
@@ -47,39 +50,81 @@ def query_latest_gpu_info(db_path: str, query_tm: Optional[str] = None) -> pd.Da
     return data
 
 
+def load_min_timestamp(db_path: str) -> Optional[dt.datetime]:
+    if os.path.exists(MIN_TIMESTAMP_CACHE):
+        try:
+            with open(MIN_TIMESTAMP_CACHE, "r") as f:
+                cache = json.load(f)
+            min_ts = cache.get(db_path)
+            if min_ts:
+                return pd.to_datetime(min_ts).tz_localize("UTC").tz_convert("Asia/Shanghai")
+        except Exception as e:
+            logger.warning(f"Failed to read min timestamp cache: {e}")
+    return None
+
+
+def refresh_min_timestamp(db_path: str):
+    conn = sqlite3.connect(db_path)
+    query = "SELECT MIN(timestamp) AS min_timestamp FROM gpu_history"
+    data = pd.read_sql_query(query, conn)
+    conn.close()
+    min_timestamp = None
+    if not data.empty and data["min_timestamp"].iloc[0]:
+        min_timestamp = data["min_timestamp"].iloc[0]
+    # 更新缓存文件
+    cache = {}
+    if os.path.exists(MIN_TIMESTAMP_CACHE):
+        try:
+            with open(MIN_TIMESTAMP_CACHE, "r") as f:
+                cache = json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to read min timestamp cache: {e}")
+    else:
+        logger.info("Min timestamp cache file does not exist, creating a new one.")
+    if min_timestamp:
+        cache[db_path] = min_timestamp
+        with open(MIN_TIMESTAMP_CACHE, "w") as f:
+            json.dump(cache, f, indent=4)
+        return pd.to_datetime(min_timestamp).tz_localize("UTC").tz_convert("Asia/Shanghai")
+    return None
+
+
 @st.cache_data
-def query_min_max_timestamp(db_path: str, query_tm: Optional[str] = None) -> Tuple[dt.datetime, dt.datetime]:
+def query_min_max_timestamp(
+    db_path: str, query_tm: Optional[str] = None, refresh_cache: bool = False
+) -> Tuple[dt.datetime, dt.datetime]:
     """
-    查询最早和最晚的 GPU 数据记录时间。
+    查询最早和最晚的 GPU 数据记录时间（最早时间缓存，最新时间实时查询）。
 
     Args:
         db_path (str): SQLite 数据库路径。
         query_tm (Optional[str]): 查询时间 token
+        refresh_cache (bool): 是否强制刷新最早时间缓存
 
     Returns:
         min_timestamp (datetime): 最早的 GPU 数据记录时间。
         max_timestamp (datetime): 最晚的 GPU 数据记录时间。
     """
     logger.trace(f"Querying min and max timestamp from {db_path}")
-    conn = sqlite3.connect(db_path)
 
-    # 查询最早和最晚的 GPU 数据记录时间
-    query = """
-        SELECT 
-            MIN(timestamp) AS min_timestamp,
-            MAX(timestamp) AS max_timestamp
-        FROM gpu_history
-    """
+    # 读取或刷新最早时间缓存
+    min_timestamp = None
+    if refresh_cache:
+        min_timestamp = refresh_min_timestamp(db_path)
+    else:
+        min_timestamp = load_min_timestamp(db_path)
+        if min_timestamp is None:
+            min_timestamp = refresh_min_timestamp(db_path)
+
+    # 查询最新时间
+    conn = sqlite3.connect(db_path)
+    query = "SELECT MAX(timestamp) AS max_timestamp FROM gpu_history"
     data = pd.read_sql_query(query, conn)
     conn.close()
-    logger.trace("Query min and max timestamp completed")
+    if data.empty or not data["max_timestamp"].iloc[0]:
+        return min_timestamp, None
 
-    if data.empty:
-        return None, None
-
-    min_timestamp = pd.to_datetime(data["min_timestamp"].iloc[0]).tz_localize("UTC").tz_convert("Asia/Shanghai")
     max_timestamp = pd.to_datetime(data["max_timestamp"].iloc[0]).tz_localize("UTC").tz_convert("Asia/Shanghai")
-
     return min_timestamp, max_timestamp
 
 
