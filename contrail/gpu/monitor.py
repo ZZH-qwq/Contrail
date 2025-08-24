@@ -1,9 +1,11 @@
 import schedule
-import time
+import os
+import json
 from loguru import logger
 from typing import Optional, Dict
 from multiprocessing import Process
-import signal
+from dataclasses import dataclass
+import shlex
 import sys
 import select
 
@@ -14,14 +16,22 @@ from contrail.gpu.connector.ssh import SSHDeviceConnector
 from contrail.utils.email_sender import EmailSender, EmailTemplate
 
 
+@dataclass
+class ManagerConfig:
+    reload_interval: int = 0  # 0 表示不自动重载
+    db_path: str = "data"
+    log_path: str = "log"
+
+
 class DeviceManager:
     """总控端设备管理器"""
 
     def __init__(self, email_sender: Optional[EmailSender] = None):
         self.connected_devices: Dict[str, Dict] = {}  # 设备名称 -> {connector, process}
-        self.scheduler = schedule.Scheduler()
         self.email_sender = email_sender
         self._config_path = "config/host_config.json"
+        self.config = ManagerConfig()
+        self.reload_scheduler = None
 
     def add_device(self, config: DeviceConfig):
         """添加设备并初始化连接器"""
@@ -87,32 +97,45 @@ class DeviceManager:
         device["process"] = p
         logger.info(f"Started monitoring process for {name} (pid={p.pid})")
 
-    def process_command(self, command: str):
+    def process_command(self, command_str: str):
         """处理命令"""
+        parts = shlex.split(command_str)
+        command = parts[0]
         if command == "reload":
             logger.info("Received reload command, reloading config...")
             try:
-                device_added = self.load_config(self._config_path)
+                if len(parts) > 1:
+                    config_path = os.path.expanduser(parts[1])
+                    if os.path.exists(config_path):
+                        logger.info(f"Reloading config from {config_path}...")
+                        device_added = self.load_config(config_path)
+                    else:
+                        logger.warning(f"Config file {config_path} does not exist")
+                else:
+                    device_added = self.load_devices()
+
                 for name in device_added:
                     self.create_process(name)
             except Exception as e:
                 logger.error(f"Failed to reload config: {e}")
         elif command == "exit":
             logger.info("Received exit command, cleaning up and exiting...")
+            for name in list(self.connected_devices.keys()):
+                self.remove_device(name)
             sys.exit(0)
         elif command == "list":
             logger.info("Connected devices:")
             for name in self.connected_devices.keys():
                 logger.info(f" - {name}")
-        elif command.startswith("remove "):
+        elif command == "remove" and len(parts) == 2:
             # 移除指定设备
-            name = command.split(" ")[1]
+            name = parts[1]
             if name in self.connected_devices:
                 self.remove_device(name)
             else:
                 logger.warning(f"Device {name} not found")
         else:
-            logger.warning(f"Unknown command: {command}")
+            logger.warning(f"Unknown command: {command_str}")
 
     def monitor(self):
         """启动所有设备的监控进程，并监听 stdin 输入"""
@@ -152,6 +175,9 @@ class DeviceManager:
                         self.process_command(cmd)
                 # 如果没有输入，2秒后继续循环
 
+                if self.reload_scheduler:
+                    schedule.run_pending()
+
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt, cleaning up...")
         except Exception as e:
@@ -169,25 +195,58 @@ class DeviceManager:
             self.email_sender.send(template)
 
     def load_config(self, config_path: str = "config/host_config.json"):
-        """加载配置文件"""
-        import json
-
         self._config_path = config_path
+
+        with open(self._config_path, "r") as f:
+            config = json.load(f)
+            if "config" in config["monitor"]:
+                new_config = ManagerConfig(**config["monitor"]["config"])
+                logger.info(f"Loaded manager config: {new_config}")
+
+                if new_config != self.config:
+                    self.config = new_config
+                    logger.warning(f"Manager config updated: pre-existing devices will not be affected")
+
+                if self.config.reload_interval > 0:
+                    if self.reload_scheduler:
+                        schedule.clear(self.reload_scheduler)
+                    self.reload_scheduler = schedule.every(self.config.reload_interval).seconds.do(self.reload_job)
+                    logger.info(f"Set up device reload every {self.config.reload_interval} seconds")
+
+            else:
+                logger.warning("No manager config found in config file, using defaults")
+
+        return self.load_devices()
+
+    def load_devices(self, log=True):
+        """加载配置文件"""
         device_added = []
 
-        with open(config_path, "r") as f:
+        with open(self._config_path, "r") as f:
             config = json.load(f)
+            config["monitor"].pop("config", None)
+
             for _, conf in config["monitor"].items():
+                conf = {"db_path": self.config.db_path} | conf
                 if conf["name"] not in self.connected_devices:
                     self.add_device(DeviceConfig(**conf))
                     device_added.append(conf["name"])
 
-        if not device_added:
+        if device_added:
+            logger.info(f"Loaded config from {self._config_path}, added devices: {device_added}")
+        elif log:
             logger.info("No new devices added from config")
         else:
-            logger.info(f"Loaded config from {config_path}, added devices: {device_added}")
+            logger.trace("No new devices added from config")
 
         return device_added
+
+    def reload_job(self):
+        """自动重载设备并创建进程"""
+        logger.trace("Auto reloading devices...")
+        device_added = self.load_devices(log=False)
+        for name in device_added:
+            self.create_process(name)
 
 
 # 使用示例

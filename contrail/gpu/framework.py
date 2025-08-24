@@ -17,6 +17,7 @@ class DeviceConfig:
     name: str
     type: str  # local/socket/ssh
     params: Dict[str, Any]
+    db_path: str = "data"
     retries: int = 3
     poll_interval: float = 1.0
     aggregate_period: int = 30
@@ -47,8 +48,8 @@ class BaseDeviceConnector(abc.ABC):
         self._connected = False
         self._last_seen = None
         self._error_count = 0
-        self.realtime_db_path = f"data/gpu_info_{self.config.name}.db"
-        self.history_db_path = f"data/gpu_history_{self.config.name}.db"
+        self.realtime_db_path = f"{self.config.db_path}/gpu_info_{self.config.name}.db"
+        self.history_db_path = f"{self.config.db_path}/gpu_history_{self.config.name}.db"
         self.scheduler = None
 
         # 初始化数据库
