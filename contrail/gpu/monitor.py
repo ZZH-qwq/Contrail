@@ -207,11 +207,15 @@ class DeviceManager:
                     self.config = new_config
                     logger.warning(f"Manager config updated: pre-existing devices will not be affected")
 
-                if self.config.reload_interval > 0:
                     if self.reload_scheduler:
                         schedule.clear(self.reload_scheduler)
-                    self.reload_scheduler = schedule.every(self.config.reload_interval).seconds.do(self.reload_job)
-                    logger.info(f"Set up device reload every {self.config.reload_interval} seconds")
+
+                    if self.config.reload_interval > 0:
+                        self.reload_scheduler = schedule.every(self.config.reload_interval).seconds.do(self.reload_job)
+                        logger.info(f"Set up device reload every {self.config.reload_interval} seconds")
+                    else:
+                        self.reload_scheduler = None
+                        logger.info("Auto reload disabled")
 
             else:
                 logger.warning("No manager config found in config file, using defaults")
