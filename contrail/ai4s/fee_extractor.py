@@ -4,7 +4,7 @@ import sqlite3
 import sys
 import os
 
-from contrail.utils import query_ai4s_username
+from contrail.utils.config import query_ai4s_username
 
 
 def extract_and_save_to_db(file_path, db_path, table_name, if_exists="replace"):

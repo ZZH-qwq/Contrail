@@ -5,7 +5,7 @@ import altair as alt
 import datetime as dt
 
 from contrail.gpu.GPU_query_db import *
-from contrail.utils import query_server_username
+from contrail.utils.config import query_server_username
 
 
 COLOR_SCHEME = px.colors.qualitative.Plotly

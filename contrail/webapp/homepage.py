@@ -6,7 +6,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from contrail.gpu.GPU_query_db import query_latest_gpu_info
-from contrail.utils import enabled_features, webapp_config
+from contrail.utils.config import enabled_features, webapp_config
 
 
 def load_ai4s_result(file="data/ai4s_data.json"):

@@ -6,7 +6,7 @@ import datetime as dt
 import numpy as np
 
 from contrail.gpu.GPU_query_db import *
-from contrail.utils import query_server_username
+from contrail.utils.config import query_server_username
 
 
 def gpu_chart_band(df, y_label, N_GPU=8):

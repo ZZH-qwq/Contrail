@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-from contrail.utils import enabled_features, server_users, ai4s_users
+from contrail.utils.config import enabled_features, server_users, ai4s_users
 
 
 @st.cache_data

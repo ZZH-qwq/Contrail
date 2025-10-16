@@ -6,7 +6,7 @@ import datetime as dt
 import json
 import os
 
-from contrail.utils import query_ai4s_username
+from contrail.utils.config import query_ai4s_username
 
 
 def read_json_result(file="data/ai4s_data.json", display_warning=True):

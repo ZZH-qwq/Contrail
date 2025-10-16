@@ -8,7 +8,7 @@ from streamlit_javascript import st_javascript
 from user_agents import parse
 
 from contrail.webapp import webapp_realtime, webapp_history, HomePage
-from contrail.utils import enabled_features, devices_config, PageConfig
+from contrail.utils.config import enabled_features, devices_config, PageConfig
 
 
 class DevicePage:
