@@ -27,7 +27,9 @@
                 "port": 22,
                 "user": "admin",
                 "key_file": "/home/admin/.ssh/id_rsa",
-                "command": "bash /home/admin/monitor.sh"
+                "init_cmd": "source init_cmd.sh && conda activate contrail",
+                "command": "contrail log",
+                "read_timeout": 5.0
             },
             "poll_interval": 0.5
         }
