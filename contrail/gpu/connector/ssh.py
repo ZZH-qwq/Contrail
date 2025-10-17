@@ -16,6 +16,8 @@ class SSHDeviceConnector(BaseDeviceConnector):
     PROMPT_RE = re.compile(r"(^.*[#$]\s*$)|(^.*\([^)]+\)\s*.*[#$]\s*$)")
     # 过滤 ANSI 转义序列
     ANSI_ESCAPE_RE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    # Python 报错信息开头
+    PYTHON_ERROR_RE = re.compile(r"^Traceback \(most recent call last\):")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -71,8 +73,7 @@ class SSHDeviceConnector(BaseDeviceConnector):
 
     def _send_and_clean(self, cmd: str, drain_time: float = 0.05):
         """
-        发送命令并在 drain_time 内读取到达的数据以丢弃回显 / prompt。
-        **注意**：不会将读取内容保存到任何缓冲区。
+        发送命令并在 drain_time 内读取到达的数据以丢弃回显 / prompt
         """
         if not self.channel:
             raise RuntimeError("No persistent shell channel")
@@ -105,12 +106,9 @@ class SSHDeviceConnector(BaseDeviceConnector):
         self._recv_buffer = ""
 
         while time.time() < deadline:
-            # 读取所有可用数据
             try:
                 while self.channel.recv_ready():
-                    data = self.channel.recv(65536).decode(errors="ignore")
-                    if data:
-                        self._recv_buffer += data
+                    self._recv_buffer += self.channel.recv(65536).decode(errors="ignore")
             except socket.timeout:
                 logger.warning(f"[{self.config.name}] channel read timeout")
                 pass
@@ -122,43 +120,33 @@ class SSHDeviceConnector(BaseDeviceConnector):
             if "\n" in self._recv_buffer:
                 lines = self._recv_buffer.splitlines()
                 # 如果最后一行不是以换行结束，则保留为不完整行
-                if not self._recv_buffer.endswith("\n"):
-                    incomplete = lines.pop()
-                else:
-                    incomplete = ""
+                self._recv_buffer = "" if self._recv_buffer.endswith("\n") else lines.pop()
 
-                for ln in lines:
-                    s = ln.strip()
-                    s = self.ANSI_ESCAPE_RE.sub("", s)
-                    if not s:
+                for i, ln in enumerate(lines):
+                    # 过滤转义字符和回显
+                    s = self.ANSI_ESCAPE_RE.sub("", ln.strip())
+                    if not s or s == cmd.strip() or self.PROMPT_RE.match(s):
                         continue
-                    # 过滤命令回显
-                    if s == cmd.strip():
-                        continue
-                    # 过滤 prompt
-                    if self.PROMPT_RE.match(s):
-                        continue
+
+                    # Exception Traceback 检测
+                    if self.PYTHON_ERROR_RE.match(s):
+                        traceback_msg = "\n".join(
+                            [s] + [self.ANSI_ESCAPE_RE.sub("", l.strip()) for l in lines[i + 1 :]]
+                        )
+                        self.handle_error(RuntimeError(traceback_msg))
+                        return None
 
                     # 尝试解析 JSON
                     try:
                         obj = json.loads(s)
-                    except Exception:
-                        logger.warning(f"[{self.config.name}] non-json line ignored: {s:200} (len={len(s)})")
-                        continue
-
-                    if isinstance(obj, list):
                         return obj
-                    else:
-                        logger.warning(f"[{self.config.name}] json is not a list, ignored: {s[:200]} (len={len(s)})")
-                        continue
+                    except Exception:
+                        logger.warning(
+                            f"[{self.config.name}] non-json line ignored: {s if len(s) <= 200 else s[:200]} (len={len(s)})"
+                        )
 
-                # 更新缓冲保留不完整部分
-                self._recv_buffer = incomplete
-
-            # 等待一小段时间继续读取
             time.sleep(0.02)
 
-        # 超时未读到 JSON
         logger.warning(f"[{self.config.name}] read timeout, no JSON parsed")
         return None
 
