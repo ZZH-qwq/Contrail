@@ -76,6 +76,34 @@ def feature_pages():
     return pages
 
 
+def custom_navigate(home, devices, features):
+    # if st.button("**Contrail 主页**", use_container_width=True):
+    #     st.switch_page(home)
+    st.page_link(home, label="**Contrail 主页**", use_container_width=True)
+
+    st.markdown("""<hr style="margin: 10px -10px 10px -10px;">""", unsafe_allow_html=True)
+    st.markdown("#### 设备监控")
+
+    for device_name, device_pages in devices.items():
+        if enabled_features.history_only:
+            st.page_link(device_pages[0], label=device_name, use_container_width=True)
+        else:
+            with st.popover(device_name, use_container_width=True):
+                for page in device_pages:
+                    st.page_link(page, label=page.title, use_container_width=True)
+
+    st.markdown("""<hr style="margin: 5px -10px 10px -10px;">""", unsafe_allow_html=True)
+    st.markdown("#### 其它功能")
+
+    for feature_name, feature_pages in features.items():
+        if len(feature_pages) == 1:
+            st.page_link(feature_pages[0], label=feature_pages[0].title, use_container_width=True)
+        else:
+            with st.popover(feature_name, use_container_width=True):
+                for page in feature_pages:
+                    st.page_link(page, label=page.title, use_container_width=True)
+
+
 def main():
     st.set_page_config(page_icon="assets/logo/favicon.png")
     st.logo("assets/logo/logo_small.png", size="large")
@@ -91,9 +119,11 @@ def main():
     device_p, device_conf = device_pages()
     pages |= device_p
 
-    pages |= feature_pages()
+    feature_p = feature_pages()
+    pages |= feature_p
 
-    pages["Home"].append(st.Page(HomePage(pages, device_conf), title="Contrail 主页", url_path="home"))
+    home_p = st.Page(HomePage(pages, device_conf), title="Contrail 主页", url_path="home")
+    pages["Home"].append(home_p)
 
     st.html(
         """<style>
@@ -103,10 +133,42 @@ def main():
             position:absolute !important;
             opacity: 0;
         }
+        /* 侧边栏 - 宽度限制 */
+        section.stSidebar {
+            flex-shrink: 0.01 !important;
+            max-width: 60vw;
+            min-width: 0;
+        }
         /* 侧边栏 - 折叠按钮 */
         div[data-testid="stSidebarCollapsedControl"] button {
             margin: -6px 0px -6px -45px;
             padding: 10px 10px 10px 50px;
+        }
+        /* 自定义导航栏 */
+        div[data-testid="stSidebarUserContent"] button[data-testid="stPopoverButton"] {
+            background-color: transparent;
+            border: none;
+            padding: 0;
+            min-height: 1.2rem;
+            flex-direction: row;
+            justify-content: left;
+            align-items: flex-start;
+            margin-top: -0.375rem;
+            margin-bottom: -0.375rem;
+        }
+        div[data-testid="stSidebarUserContent"] button[data-testid="stPopoverButton"]:hover {
+            background-color: light-dark(rgba(151, 166, 195, 0.15), rgba(172, 177, 195, 0.15));
+        }
+        div[data-testid="stSidebarUserContent"] button[data-testid="stPopoverButton"] > * {
+            color: light-dark(rgb(49, 51, 63), rgb(250, 250, 250));
+            line-height: 2;
+        }
+        div[data-testid="stSidebarUserContent"] button[data-testid="stPopoverButton"] > div[data-testid="stMarkdownContainer"] {
+            padding-left: 0.5rem;
+        }
+        /* 弹出菜单边距 */
+        div[data-testid="stPopoverBody"] {
+            padding: calc(-1px + 1rem) !important;
         }
         </style>"""
     )
@@ -114,6 +176,9 @@ def main():
     ua_string = st_javascript("""window.navigator.userAgent;""", key="ua_string")
     user_agent = parse(ua_string) if ua_string else None
     st.session_state.is_session_pc = user_agent.is_pc if user_agent else True
+
+    with st.sidebar:
+        custom_navigate(home_p, device_p, feature_p)
 
     pg = st.navigation(pages)
     pg.run()
