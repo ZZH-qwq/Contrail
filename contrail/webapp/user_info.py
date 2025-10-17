@@ -37,7 +37,7 @@ def webapp_user_info():
     with st.container():
         st.subheader("服务器用户")
         st.dataframe(
-            filter_user("server", search_input).style.applymap(
+            filter_user("server", search_input).style.map(
                 lambda s: highlight_matches(search_input, s), subset=pd.IndexSlice[:, :]
             ),
             use_container_width=True,
@@ -45,7 +45,7 @@ def webapp_user_info():
     with st.container():
         st.subheader("AI4S")
         st.dataframe(
-            filter_user("ai4s", search_input).style.applymap(
+            filter_user("ai4s", search_input).style.map(
                 lambda s: highlight_matches(search_input, s), subset=pd.IndexSlice[:, :]
             ),
             use_container_width=True,
