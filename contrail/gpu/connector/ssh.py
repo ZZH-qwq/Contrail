@@ -125,7 +125,7 @@ class SSHDeviceConnector(BaseDeviceConnector):
                 for i, ln in enumerate(lines):
                     # 过滤转义字符和回显
                     s = self.ANSI_ESCAPE_RE.sub("", ln.strip())
-                    if not s or s == cmd.strip() or self.PROMPT_RE.match(s):
+                    if not s or s.endswith(cmd.strip()) or self.PROMPT_RE.match(s):
                         continue
 
                     # Exception Traceback 检测
