@@ -1,3 +1,4 @@
+import datetime as dt
 import streamlit as st
 import plotly.express as px
 
@@ -29,6 +30,8 @@ def webapp_fee():
     reset.button("重置", use_container_width=True, on_click=reset_button)
 
     # 确保用户输入的时间范围有效
+    assert isinstance(start_date, dt.date)
+    assert isinstance(end_date, dt.date)
     if start_date >= end_date:
         st.error("结束日期必须晚于开始日期！")
     else:

@@ -7,6 +7,8 @@ import datetime as dt
 from contrail.gpu.GPU_query_db import *
 from contrail.utils.config import query_server_username
 
+# pyright: basic
+
 
 COLOR_SCHEME = px.colors.qualitative.Plotly
 
@@ -132,7 +134,7 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
         selection_mode="single",
         key=f"selection_realtime_{hostname}",
         on_change=store_value,
-        args=[f"selection_realtime_{hostname}"],
+        args=(f"selection_realtime_{hostname}",),
     )
 
     try:
@@ -177,7 +179,7 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
             )
             chart = alt.layer(line, points, rules)
 
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
 
             # GPU 内存使用情况
             st.subheader("显存用量 GB")
@@ -200,7 +202,7 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
             )
             chart = alt.layer(line, points, rules)
 
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
 
         elif select == "**用户使用**":
             user_gpu_df["user"] = user_gpu_df["user"].apply(lambda x: query_server_username(DB_PATH, x))

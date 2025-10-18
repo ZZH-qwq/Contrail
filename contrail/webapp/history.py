@@ -8,6 +8,8 @@ import numpy as np
 from contrail.gpu.GPU_query_db import *
 from contrail.utils.config import query_server_username
 
+# pyright: basic
+
 
 def gpu_chart_band(df, y_label, N_GPU=8):
     df["gpu_index"] = df["gpu_index"].astype(str)
@@ -201,7 +203,7 @@ def get_default_time(db_path):
         min_time = default_start_time = default_end_time - dt.timedelta(hours=6)
 
     oldest_timestamp, latest_timestamp = query_min_max_timestamp(db_path, max_time.strftime("%Y-%m-%d %H:%M"))
-    if oldest_timestamp is not None:
+    if oldest_timestamp is not None and latest_timestamp is not None:
         default_start_time = celi_to_quarter(max(default_start_time, oldest_timestamp.replace(tzinfo=None)))
         default_end_time = celi_to_quarter(min(default_end_time, latest_timestamp.replace(tzinfo=None)))
         min_time = celi_to_quarter(min(min_time, oldest_timestamp.replace(tzinfo=None)) - dt.timedelta(minutes=15))
@@ -260,6 +262,8 @@ def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db", config
     )
     end_time = col2.time_input("结束时间", value=default_end_time, key="end_time", label_visibility="collapsed")
 
+    assert isinstance(start_date, dt.date)
+    assert isinstance(end_date, dt.date)
     start_time = dt.datetime.combine(start_date, start_time).astimezone(dt.timezone.utc)
     end_time = dt.datetime.combine(end_date, end_time).astimezone(dt.timezone.utc)
 
@@ -295,7 +299,7 @@ def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db", config
                 selection_mode="single",
                 key=f"selection_history_{hostname}",
                 on_change=store_value,
-                args=[f"selection_history_{hostname}"],
+                args=(f"selection_history_{hostname}",),
             )
 
             try:

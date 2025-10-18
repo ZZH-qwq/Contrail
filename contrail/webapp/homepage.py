@@ -60,12 +60,14 @@ def device_status(device, timestamp: str):
         st.caption(f"{n_gpu} × {gpu} {gmem}G")
         return None
 
+    current_timestamp = None
     try:
         gpu_current_df = query_latest_gpu_info(db_path, timestamp)
         if not gpu_current_df.empty:
             current_timestamp = gpu_current_df["timestamp"].max()
     except Exception as e:
         st.error(e)
+        return None
 
     mean_util = gpu_current_df["gpu_utilization"].mean()
 
@@ -177,7 +179,8 @@ def webapp_homepage(pages, configs, md_content=None):
                 break
             with col:
                 timestamp = device_card(configs_list[i + j], pages)
-                times.append(timestamp)
+                if timestamp:
+                    times.append(timestamp)
 
     if not enabled_features.history_only:
         times = [dt.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") for ts in times]
