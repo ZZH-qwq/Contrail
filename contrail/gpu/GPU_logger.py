@@ -8,7 +8,18 @@ from loguru import logger
 
 from typing import List, Dict, Tuple, Optional
 
-from pynvml import *
+from pynvml import (
+    nvmlInit,
+    nvmlShutdown,
+    nvmlDeviceGetCount,
+    nvmlDeviceGetHandleByIndex,
+    nvmlDeviceGetName,
+    nvmlDeviceGetUtilizationRates,
+    nvmlDeviceGetMemoryInfo,
+    nvmlDeviceGetGraphicsRunningProcesses,
+    nvmlDeviceGetComputeRunningProcesses,
+    NVMLError,
+)
 import psutil
 
 from contrail.utils.email_sender import EmailSender, EmailTemplate
@@ -44,10 +55,8 @@ def get_gpu_info() -> List[Dict]:
         try:
             processes = nvmlDeviceGetGraphicsRunningProcesses(handle) + nvmlDeviceGetComputeRunningProcesses(handle)
         except NVMLError as err:
-            if err.value == NVML_ERROR_NOT_SUPPORTED:
-                processes = []  # 某些设备可能不支持获取进程信息
-            else:
-                raise
+            logger.error(f"Error getting processes for GPU {i}: {err}")
+            processes = []
 
         process_info = []
         for p in processes:

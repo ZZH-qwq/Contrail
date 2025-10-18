@@ -6,7 +6,6 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
 from loguru import logger
-from pynvml import *
 
 # 复用原有模块的功能
 from contrail.gpu.GPU_logger import *

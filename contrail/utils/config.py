@@ -17,9 +17,9 @@ class EnabledFeature:
 class PageConfig:
     hostname: str
     gpu_type: str
-    realtime_db_path: str = None
-    history_db_path: str = None
-    config: dict = None
+    realtime_db_path: str | None = None
+    history_db_path: str | None = None
+    config: dict | None = None
 
     def __post_init__(self):
         if not self.realtime_db_path:

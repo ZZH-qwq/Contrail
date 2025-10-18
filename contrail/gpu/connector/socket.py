@@ -49,6 +49,7 @@ class SocketDeviceConnector(BaseDeviceConnector):
 
     def _flush_socket(self):
         """清空 socket 缓冲区"""
+        assert self.client_socket is not None
         try:
             self.client_socket.setblocking(False)
             while True:
@@ -62,7 +63,7 @@ class SocketDeviceConnector(BaseDeviceConnector):
 
     def collect(self) -> Optional[list]:
         """从网络设备收集数据"""
-        if not self._connected:
+        if not self._connected or not self.client_socket:
             logger.warning(f"Not connected to {self.config.name}")
             return None
 

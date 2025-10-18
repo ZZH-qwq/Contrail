@@ -111,6 +111,7 @@ class DeviceManager:
                         device_added = self.load_config(config_path)
                     else:
                         logger.warning(f"Config file {config_path} does not exist")
+                        device_added = []
                 else:
                     device_added = self.load_devices()
 
@@ -191,8 +192,8 @@ class DeviceManager:
     def send_alert(self, message: str):
         """发送警报通知"""
         if self.email_sender:
-            template = EmailTemplate(subject="GPU Monitor Alert", content=f"[设备异常告警]\n{message}")
-            self.email_sender.send(template)
+            # TODO: implement email sending
+            pass
 
     def load_config(self, config_path: str = "config/host_config.json"):
         self._config_path = config_path

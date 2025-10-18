@@ -23,7 +23,6 @@ def screenshot(driver, filename="screenshots/body.png"):
 
 def set_filter(driver):
     logger.trace("Setting filter")
-    filter_input = None
 
     try:
         filter_input = driver.find_element(
@@ -31,11 +30,11 @@ def set_filter(driver):
             ".mf-notebook-list > .du-listpage-toolbar > .aibp-notebook-search-form > .ant-row > .ant-col.ant-col-24:nth-child(1) > .ant-row-flex > .ant-col.ant-col-8:nth-child(2) .ant-select-selection--multiple .ant-select-selection__placeholder",
         )
         screenshot(driver)
+        filter_input.click()
     except Exception as e:
         logger.error(f"Error setting filter: {e}")
         time.sleep(0.5)
 
-    filter_input.click()
     time.sleep(0.5)
 
     screenshot(driver)
@@ -188,6 +187,7 @@ class WebDriverManager:
 
     def _login(self):
         """执行登录流程"""
+        assert self.driver is not None
         try:
             # 读取并修改Cookie的到期时间
             with open(COOKIE_FILE, "r") as file:

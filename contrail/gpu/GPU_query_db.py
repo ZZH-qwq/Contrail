@@ -63,7 +63,7 @@ def load_min_timestamp(db_path: str) -> Optional[dt.datetime]:
     return None
 
 
-def refresh_min_timestamp(db_path: str):
+def refresh_min_timestamp(db_path: str) -> Optional[dt.datetime]:
     conn = sqlite3.connect(db_path)
     query = "SELECT MIN(timestamp) AS min_timestamp FROM gpu_history"
     data = pd.read_sql_query(query, conn)
@@ -92,7 +92,7 @@ def refresh_min_timestamp(db_path: str):
 @st.cache_data
 def query_min_max_timestamp(
     db_path: str, query_tm: Optional[str] = None, refresh_cache: bool = False
-) -> Tuple[dt.datetime, dt.datetime]:
+) -> Tuple[Optional[dt.datetime], Optional[dt.datetime]]:
     """
     查询最早和最晚的 GPU 数据记录时间（最早时间缓存，最新时间实时查询）。
 
@@ -102,8 +102,8 @@ def query_min_max_timestamp(
         refresh_cache (bool): 是否强制刷新最早时间缓存
 
     Returns:
-        min_timestamp (datetime): 最早的 GPU 数据记录时间。
-        max_timestamp (datetime): 最晚的 GPU 数据记录时间。
+        min_timestamp (Optional[datetime]): 最早的 GPU 数据记录时间。
+        max_timestamp (Optional[datetime]): 最晚的 GPU 数据记录时间。
     """
     logger.trace(f"Querying min and max timestamp from {db_path}")
 
@@ -122,7 +122,7 @@ def query_min_max_timestamp(
     data = pd.read_sql_query(query, conn)
     conn.close()
     if data.empty or not data["max_timestamp"].iloc[0]:
-        return min_timestamp, None
+        return None, None
 
     max_timestamp = pd.to_datetime(data["max_timestamp"].iloc[0]).tz_localize("UTC").tz_convert("Asia/Shanghai")
     return min_timestamp, max_timestamp
@@ -283,7 +283,7 @@ def get_period_sample_interval(start_time: dt.datetime, end_time: dt.datetime) -
     else:  # 超过 7 天，采样间隔为 1 小时
         interval = 3600
 
-    return interval
+    return int(interval)
 
 
 @st.cache_data

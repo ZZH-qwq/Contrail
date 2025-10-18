@@ -83,7 +83,7 @@ class SSHDeviceConnector(BaseDeviceConnector):
         else:
             cmd_to_send = cmd
 
-        self.channel.send(cmd_to_send)
+        self.channel.send(cmd_to_send.encode())
 
         end = time.time() + drain_time
         while time.time() < end:
@@ -104,6 +104,8 @@ class SSHDeviceConnector(BaseDeviceConnector):
         """
         deadline = time.time() + timeout
         self._recv_buffer = ""
+
+        assert self.channel is not None
 
         while time.time() < deadline:
             try:
@@ -158,7 +160,7 @@ class SSHDeviceConnector(BaseDeviceConnector):
             logger.warning(f"[{self.config.name}] not connected")
             return None
 
-        cmd = self.config.params.get("command")
+        cmd = self.config.params["command"]
 
         try:
             # 发送命令并短暂清理回显
