@@ -69,6 +69,14 @@ def device_status(device, timestamp: str):
         st.error(e)
         return None
 
+    if gpu_current_df.empty:
+        st.subheader(name)
+        st.write(
+            "<hr style='margin: 10px 0 5px 0;'><span style='color: orange;'>无法读取 GPU 数据</span>",
+            unsafe_allow_html=True,
+        )
+        return None
+
     mean_util = gpu_current_df["gpu_utilization"].mean()
 
     st.subheader(name)
