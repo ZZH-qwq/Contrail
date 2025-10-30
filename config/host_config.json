@@ -29,7 +29,8 @@
                 "key_file": "/home/admin/.ssh/id_rsa",
                 "init_cmd": "source init_cmd.sh && conda activate contrail",
                 "command": "contrail log",
-                "read_timeout": 5.0
+                "read_timeout": 5.0,
+                "max_consecutive_timeouts": 5
             },
             "poll_interval": 0.5
         }

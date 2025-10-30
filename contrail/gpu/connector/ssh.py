@@ -24,6 +24,8 @@ class SSHDeviceConnector(BaseDeviceConnector):
         self.client: Optional[paramiko.SSHClient] = None
         self.channel: Optional[paramiko.Channel] = None
         self._recv_buffer = ""  # 未解析的字符缓冲
+        self._timeout_streak = 0
+        self._last_read_was_timeout = False
 
     def connect(self):
         if self._connected:
@@ -104,6 +106,7 @@ class SSHDeviceConnector(BaseDeviceConnector):
         """
         deadline = time.time() + timeout
         self._recv_buffer = ""
+        self._last_read_was_timeout = False
 
         assert self.channel is not None
 
@@ -150,7 +153,20 @@ class SSHDeviceConnector(BaseDeviceConnector):
             time.sleep(0.02)
 
         logger.warning(f"[{self.config.name}] read timeout, no JSON parsed")
+        self._last_read_was_timeout = True
         return None
+
+    def _detect_timeout_streak(self):
+        if self._last_read_was_timeout:
+            self._timeout_streak += 1
+            max_timeouts = max(1, int(self.config.params.get("max_consecutive_timeouts", 3)))
+            if self._timeout_streak >= max_timeouts:
+                err = TimeoutError(f"[{self.config.name}] consecutive read timeouts reached {self._timeout_streak}")
+                # 超过阈值判定为错误
+                self.handle_error(err)
+                self._timeout_streak = 0
+        else:
+            self._timeout_streak = 0
 
     def collect(self) -> Optional[list]:
         """
@@ -173,4 +189,9 @@ class SSHDeviceConnector(BaseDeviceConnector):
 
         read_timeout = float(self.config.params.get("read_timeout", 5.0))
         result = self._read_lines_until_json(cmd=cmd, timeout=read_timeout)
+        if result is None:
+            self._detect_timeout_streak()
+            return None
+
+        self._timeout_streak = 0
         return result
