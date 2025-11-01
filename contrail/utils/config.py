@@ -85,6 +85,8 @@ def query_server_username(db_path: str, username: str) -> str:
     """
     col_name = db_path.split("_")[-1].split(".")[0].capitalize()
     if server_users is not None:
+        if col_name not in server_users.columns:
+            return username
         match = server_users[server_users[col_name] == username]
         if not match.empty:
             return match["姓名"].values[0]
