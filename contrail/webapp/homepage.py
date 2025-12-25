@@ -197,23 +197,24 @@ def webapp_homepage(pages, configs, md_content=None):
 
         col2.write(f"{min_time} / {max_time}")
 
-    st.subheader("AI4S 平台")
+    if enabled_features.ai4s:
+        st.subheader("AI4S 平台")
 
-    ai4s_result = load_ai4s_result()
+        ai4s_result = load_ai4s_result()
 
-    cols = st.columns(2, vertical_alignment="center")
+        cols = st.columns(2, vertical_alignment="center")
 
-    with cols[0]:
-        col1, col2 = st.columns(2)
-        col1.page_link(pages["AI4S"][0], label="AI4S 任务", use_container_width=True)
-        col2.page_link(pages["AI4S"][1], label="AI4S 费用", use_container_width=True)
-    with cols[1]:
-        if ai4s_result and ai4s_result["state"] == "success":
-            # 显示任务数量
-            n_tasks = len(ai4s_result) - 1
-            st.write(f"运行中的任务数量：**{n_tasks}**")
-        else:
-            st.warning("最近完成的任务运行失败。")
+        with cols[0]:
+            col1, col2 = st.columns(2)
+            col1.page_link(pages["AI4S"][0], label="AI4S 任务", use_container_width=True)
+            col2.page_link(pages["AI4S"][1], label="AI4S 费用", use_container_width=True)
+        with cols[1]:
+            if ai4s_result and ai4s_result["state"] == "success":
+                # 显示任务数量
+                n_tasks = len(ai4s_result) - 1
+                st.write(f"运行中的任务数量：**{n_tasks}**")
+            else:
+                st.warning("最近完成的任务运行失败。")
 
     if enabled_features.user_info and enabled_features.name_dict:
         st.subheader("用户信息")
