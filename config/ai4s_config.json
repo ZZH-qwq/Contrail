@@ -2,7 +2,8 @@
     "url": {
         "login_entry": "http://ai4s.example.com/",
         "save_cookies": "http://aiplatform.ai4s.example.com/bml/project/org-123qwe/proj-456rty",
-        "list_url": "http://aiplatform.ai4s.example.com/bml/project/model-train/notebook/org-123qwe/proj-456rty"
+        "list_url": "http://aiplatform.ai4s.example.com/bml/project/model-train/notebook/org-123qwe/proj-456rty",
+        "status_url": "http://aiplatform.ai4s.example.com/bml/project/model-train/notebook/org-123qwe/proj-456rty"
     },
     "config": {
         "chromedriver_path": "resource/chromedriver",
@@ -11,6 +12,7 @@
         "screenshot_path": "screenshots"
     },
     "runtime": {
-        "interval_list": 5
+        "interval_list": 5,
+        "interval_status": 5
     }
 }

@@ -8,7 +8,7 @@ import schedule
 from loguru import logger
 
 from contrail.ai4s.config import Ai4sConfig
-from contrail.ai4s.tasks import NotebookListTask
+from contrail.ai4s.tasks import NotebookListTask, QuotaStatusTask
 
 
 class Ai4sScheduler:
@@ -16,6 +16,7 @@ class Ai4sScheduler:
         self.config = config
         self.scheduler = schedule.Scheduler()
         self.list_task = NotebookListTask(config=self.config, via_scheduler=True)
+        self.status_task = QuotaStatusTask(config=self.config, via_scheduler=True)
         self.config.ensure_directories()
 
     def _run_task(self, task):
@@ -29,12 +30,15 @@ class Ai4sScheduler:
 
     def start(self) -> None:
         interval_list = self.config.runtime.interval_list
-        logger.info(f"Starting scheduler: list every {interval_list} min")
+        interval_status = self.config.runtime.interval_status
+        logger.info(f"Starting scheduler: list every {interval_list} min, status every {interval_status} min")
 
-        # initial run
+        # initial run for both tasks
         self._run_task(self.list_task)
+        self._run_task(self.status_task)
 
         self.scheduler.every(interval_list).minutes.do(self._run_task, self.list_task)
+        self.scheduler.every(interval_status).minutes.do(self._run_task, self.status_task)
 
         try:
             while True:

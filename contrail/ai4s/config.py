@@ -15,6 +15,7 @@ DEFAULT_CONFIG_PATH = BASE_DIR / "config" / "ai4s_config.json"
 @dataclass
 class RuntimeConfig:
     interval_list: int = 5
+    interval_status: int = 10
 
 
 @dataclass
@@ -30,6 +31,7 @@ class Ai4sUrls:
     login_entry: str
     save_cookies: str
     list_url: str
+    status_url: str
 
 
 @dataclass
