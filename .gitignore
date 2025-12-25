@@ -13,3 +13,7 @@ screenshots
 *.xlsx
 
 chromedriver
+
+config/*json
+
+resource/*.csv
