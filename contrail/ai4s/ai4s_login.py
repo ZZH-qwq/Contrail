@@ -1,108 +1,119 @@
-import time
-import json
-import os
+"""Interactive login helper that stores cookies using config-defined URLs and paths."""
 
+import sys
+import json
+import time
+import getpass
+from pathlib import Path
+
+from loguru import logger
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.options import Options
 
-import argparse
-import getpass
+from contrail.ai4s.config import Ai4sConfig
+from contrail.ai4s.base import take_screenshot
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--url", type=str, required=True, help="The URL of the target website.")
-args = parser.parse_args()
 
-# 设置ChromeDriver
-chrome_options = Options()
-chrome_options.add_argument("--headless")
-service = Service("resource/chromedriver")
+def login_and_save_cookies(config_path: Path | None = None) -> None:
+    config = Ai4sConfig.load(config_path)
+    config.ensure_directories()
 
-driver = webdriver.Chrome(service=service, options=chrome_options)
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    service = Service(str(config.paths.chromedriver_path))
 
-driver.set_window_size(1920, 1080)
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver.set_window_size(1920, 1080)
 
-# 打开目标网站
-url = "http://ai4s.sjtu.edu.cn/"
-target_url = args.url
-driver.get(url)
+    login_entry = config.cookie.login_entry
+    cookie_target = config.cookie.cookie_url
+    screenshot_dir = config.paths.screenshot_path
+    screenshot_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Open {screenshot_dir}/login.png to view the login process")
 
-try:
-    print(driver.title)
-    time.sleep(0.5)
+    def snap() -> None:
+        take_screenshot(driver, f"login", screenshot_dir, enabled=True)
 
-    # 查找登录按钮并点击
-    login_button = driver.find_element(By.CSS_SELECTOR, ".index_portal_action__glZy6")
-    login_button.click()
-    time.sleep(0.5)
+    driver.get(login_entry)
 
-    login_button = driver.find_element(By.CSS_SELECTOR, ".index_login_body__-f1e7 button")
-    login_button.click()
+    try:
+        logger.info(f"Opened login page: {driver.title}")
+        time.sleep(0.5)
 
-    # switch to login tab
-    driver.switch_to.window(driver.window_handles[-1])
-    time.sleep(0.5)
-    body = driver.find_element(By.XPATH, "/html/body")
-    body.screenshot("screenshots/body.png")
+        # 查找登录按钮并点击
+        login_button = driver.find_element(By.CSS_SELECTOR, ".index_portal_action__glZy6")
+        login_button.click()
+        time.sleep(0.5)
 
-    # 模拟用户输入
-    username_field = driver.find_element(By.CSS_SELECTOR, "#input-login-user")
-    password_field = driver.find_element(By.CSS_SELECTOR, "#input-login-pass")
-    captcha_field = driver.find_element(By.CSS_SELECTOR, "#input-login-captcha")
+        login_button = driver.find_element(By.CSS_SELECTOR, ".index_login_body__-f1e7 button")
+        login_button.click()
 
-    username = input("Please input the username: ")
-    password = getpass.getpass("Please input the password: ")
+        # switch to login tab
+        driver.switch_to.window(driver.window_handles[-1])
+        time.sleep(0.5)
+        snap()
 
-    if username != "":
-        # 保存验证码图片
-        captcha_img = driver.find_element(By.XPATH, '//*[@id="captcha-img"]')
-        captcha_img.screenshot("screenshots/captcha.png")
-        body = driver.find_element(By.XPATH, "/html/body")
-        body.screenshot("screenshots/body.png")
+        # 模拟用户输入
+        username_field = driver.find_element(By.CSS_SELECTOR, "#input-login-user")
+        password_field = driver.find_element(By.CSS_SELECTOR, "#input-login-pass")
+        captcha_field = driver.find_element(By.CSS_SELECTOR, "#input-login-captcha")
 
-        captcha_text = input("Please input the captcha text: ")
+        username = input("Please input the username: ")
+        password = getpass.getpass("Please input the password: ")
 
-        # Fill the captcha input with input
-        captcha_field.send_keys(captcha_text)
+        if username != "":
+            # 保存验证码图片
+            captcha_img = driver.find_element(By.XPATH, '//*[@id="captcha-img"]')
+            captcha_img.screenshot(str(screenshot_dir / "captcha.png"))
+            snap()
 
-        username_field.send_keys(username)
-        password_field.send_keys(password)
-        password_field.send_keys(Keys.RETURN)
+            captcha_text = input("Please input the captcha text: ")
 
-        time.sleep(1)
+            # Fill the captcha input with input
+            captcha_field.send_keys(captcha_text)
 
-    body = driver.find_element(By.XPATH, "/html/body")
-    body.screenshot("screenshots/body.png")
-    _ = input("If needed, scan the QR code and press Enter to continue...")
+            username_field.send_keys(username)
+            password_field.send_keys(password)
+            password_field.send_keys(Keys.RETURN)
 
-    body = driver.find_element(By.XPATH, "/html/body")
-    body.screenshot("screenshots/body.png")
-    _ = input("Press Enter to continue...")
+            time.sleep(1)
 
-    aiplatform = driver.find_element(By.CSS_SELECTOR, ".index_portal_link__IHdQ3")
-    aiplatform.click()
-    time.sleep(0.5)
+        snap()
+        _ = input("If needed, scan the QR code and press Enter to continue...")
 
-    driver.get(target_url)
-    time.sleep(2)
+        snap()
+        _ = input("Press Enter to continue...")
 
-    body = driver.find_element(By.XPATH, "/html/body")
-    body.screenshot("screenshots/body.png")
-    _ = input("Press Enter to continue...")
+        aiplatform = driver.find_element(By.CSS_SELECTOR, ".index_portal_link__IHdQ3")
+        aiplatform.click()
+        time.sleep(0.5)
 
-    # save the cookies to json file
-    cookies = driver.get_cookies()
-    for cookie in cookies:
-        # Set the cookie to expire in 365 days
-        cookie["expiry"] = int(time.time()) + 365 * 24 * 60 * 60
-        driver.add_cookie(cookie)
+        driver.get(cookie_target)
+        time.sleep(2)
 
-    with open("data/cookies.txt", "w") as file:
-        file.write(json.dumps(cookies))
+        snap()
+        _ = input("Press Enter to continue...")
 
-finally:
-    # 关闭浏览器
-    driver.quit()
+        # save the cookies to json file
+        cookies = driver.get_cookies()
+        for cookie in cookies:
+            # Set the cookie to expire in 365 days
+            cookie["expiry"] = int(time.time()) + 365 * 24 * 60 * 60
+            driver.add_cookie(cookie)
+
+        cookie_path = config.cookie.cookie_path
+        cookie_path.write_text(json.dumps(cookies), encoding="utf-8")
+        logger.info(f"Saved cookies to {cookie_path}")
+
+    finally:
+        driver.quit()
+
+
+if __name__ == "__main__":
+    # loguru let stdout logger only show info level and above
+    logger.remove()
+    logger.add(sys.stderr, level="INFO")
+    login_and_save_cookies()
