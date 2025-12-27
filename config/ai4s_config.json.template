@@ -1,18 +1,24 @@
 {
-    "url": {
+    "cookie": {
         "login_entry": "http://ai4s.example.com/",
-        "save_cookies": "http://aiplatform.ai4s.example.com/bml/project/org-123qwe/proj-456rty",
-        "list_url": "http://aiplatform.ai4s.example.com/bml/project/model-train/notebook/org-123qwe/proj-456rty",
-        "status_url": "http://aiplatform.ai4s.example.com/bml/project/model-train/notebook/org-123qwe/proj-456rty"
+        "cookie_url": "http://aiplatform.ai4s.example.com/bml/project/org-123qwe/proj-456rty",
+        "cookie_path": "data/cookies.txt"
     },
     "config": {
         "chromedriver_path": "resource/chromedriver",
-        "cookies_path": "data/cookies.txt",
         "save_path": "data",
         "screenshot_path": "screenshots"
     },
-    "runtime": {
-        "interval_list": 5,
-        "interval_status": 5
+    "tasks": {
+        "list": {
+            "url": "http://aiplatform.ai4s.example.com/bml/project/model-train/notebook/org-123qwe/proj-456rty"
+            "scheduled": true,
+            "interval": 5
+        },
+        "status": {
+            "url": "http://aiplatform.ai4s.example.com/bml/project/model-train/notebook/org-123qwe/proj-456rty"
+            "scheduled": true,
+            "interval": 5
+        }
     }
 }

@@ -175,7 +175,7 @@ class WebDriverManager:
         if not self.driver:
             return False
         try:
-            cookies_path = self.config.paths.cookies_path
+            cookies_path = self.config.cookie.cookie_path
             cookies = json.loads(cookies_path.read_text(encoding="utf-8"))
 
             new_expiry_time = int(time.time()) + 86400 * 30
@@ -183,7 +183,7 @@ class WebDriverManager:
                 if "expiry" in cookie:
                     cookie["expires"] = new_expiry_time
 
-            self.driver.get("http://aiplatform.ai4s.sjtu.edu.cn/")
+            self.driver.get(self.config.cookie.cookie_url)
             time.sleep(0.5)
 
             for cookie in cookies:

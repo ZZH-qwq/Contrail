@@ -18,7 +18,7 @@ from contrail.ai4s.config import Ai4sConfig
 class QuotaStatusTask(BaseTask):
     def __init__(self, config: Ai4sConfig, via_scheduler: bool = False):
         super().__init__(
-            name="ai4s_status", target_url=config.urls.status_url, config=config, via_scheduler=via_scheduler
+            name="ai4s_status", target_url=config.tasks.status.url, config=config, via_scheduler=via_scheduler
         )
 
     def execute(self, driver, manager: WebDriverManager) -> Any:

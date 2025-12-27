@@ -29,16 +29,24 @@ class Ai4sScheduler:
                 logger.error(f"Failed to persist result for {task.name}: {exc}")
 
     def start(self) -> None:
-        interval_list = self.config.runtime.interval_list
-        interval_status = self.config.runtime.interval_status
-        logger.info(f"Starting scheduler: list every {interval_list} min, status every {interval_status} min")
+        list_cfg = self.config.tasks.list
+        status_cfg = self.config.tasks.status
 
-        # initial run for both tasks
-        self._run_task(self.list_task)
-        self._run_task(self.status_task)
+        logger.info(
+            "Starting scheduler: list({}) every {} min, status({}) every {} min",
+            "on" if list_cfg.scheduled else "off",
+            list_cfg.interval,
+            "on" if status_cfg.scheduled else "off",
+            status_cfg.interval,
+        )
 
-        self.scheduler.every(interval_list).minutes.do(self._run_task, self.list_task)
-        self.scheduler.every(interval_status).minutes.do(self._run_task, self.status_task)
+        if list_cfg.scheduled:
+            self._run_task(self.list_task)
+            self.scheduler.every(list_cfg.interval).minutes.do(self._run_task, self.list_task)
+
+        if status_cfg.scheduled:
+            self._run_task(self.status_task)
+            self.scheduler.every(status_cfg.interval).minutes.do(self._run_task, self.status_task)
 
         try:
             while True:

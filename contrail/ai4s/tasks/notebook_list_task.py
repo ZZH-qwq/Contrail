@@ -16,7 +16,7 @@ from contrail.ai4s.config import Ai4sConfig
 class NotebookListTask(BaseTask):
     def __init__(self, config: Ai4sConfig, via_scheduler: bool = False):
         super().__init__(
-            name="ai4s_execute", target_url=config.urls.list_url, config=config, via_scheduler=via_scheduler
+            name="ai4s_execute", target_url=config.tasks.list.url, config=config, via_scheduler=via_scheduler
         )
 
     def execute(self, driver, manager: WebDriverManager) -> Any:
@@ -26,7 +26,7 @@ class NotebookListTask(BaseTask):
         self._apply_filter(driver)
 
         if driver.find_elements(By.CSS_SELECTOR, ".mf-notebook-list .ant-table-default .ant-table-placeholder"):
-            logger.info("No data found")
+            logger.info("No running notebooks found")
             return {"state": "success"}
 
         rows = driver.find_elements(By.CSS_SELECTOR, ".mf-notebook-list .ant-table-tbody .ant-table-row-level-0")
@@ -53,6 +53,7 @@ class NotebookListTask(BaseTask):
                 logger.warning(f"Failed to get complete data for task: {task_info['task_name']}")
 
         logger.info("Detail collection complete")
+        logger.info(f"Task completed with state: {data['state']}")
         return data
 
     def validate(self, result: Any) -> bool:
