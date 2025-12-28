@@ -206,8 +206,8 @@ def webapp_homepage(pages, configs, md_content=None):
 
         with cols[0]:
             col1, col2 = st.columns(2)
-            col1.page_link(pages["AI4S"][0], label="AI4S 任务", use_container_width=True)
-            col2.page_link(pages["AI4S"][1], label="AI4S 费用", use_container_width=True)
+            col1.page_link(pages["AI4S"][0], label="AI4S 节点", use_container_width=True)
+            col2.page_link(pages["AI4S"][1], label="AI4S 任务", use_container_width=True)
         with cols[1]:
             if ai4s_result and ai4s_result["state"] == "success":
                 # 显示任务数量

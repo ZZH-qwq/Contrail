@@ -59,11 +59,11 @@ def feature_pages():
 
     if enabled_features.ai4s:
         from contrail.webapp.ai4s_tasks import webapp_ai4s
-        from contrail.webapp.fee import webapp_fee
+        from contrail.webapp.ai4s_status import webapp_ai4s_status
 
         pages["AI4S"] = [
-            st.Page(webapp_ai4s, title="AI4S 任务列表", url_path="ai4s"),
-            st.Page(webapp_fee, title="AI4S 费用记录", url_path="ai4s_fee"),
+            st.Page(webapp_ai4s_status, title="AI4S 节点监控", url_path="ai4s_status"),
+            st.Page(webapp_ai4s, title="AI4S 任务列表", url_path="ai4s_tasks"),
         ]
 
     if enabled_features.user_info and enabled_features.name_dict:
