@@ -67,7 +67,7 @@ def parse_nodes_quota(payload):
     if df.empty:
         return df, None
 
-    df = df.sort_values(by=["GPU", "ID"], ascending=[False, True])
+    df = df.sort_values(by=["GPU", "CPU", "Memory(GB)", "ID"], ascending=[False, False, False, True])
     return df, None
 
 
@@ -127,6 +127,15 @@ def webapp_ai4s_status():
         /* 调整数据字体 */
         div[data-testid="stMetricValue"] {
             font-size: 2.0rem;
+        }
+        /* 调整 Node ID 文字 */
+        .stHorizontalBlock > .stColumn:first-child:has(.stMarkdown) div[data-testid="stElementContainer"]:last-child p * {
+            display:inline-block;
+            transform: translateY(-3px);
+            overflow:hidden;
+            text-overflow:ellipsis;
+            width: 100%;
+            white-space: nowrap;
         }
         </style>"""
     )
