@@ -34,6 +34,20 @@ Contrail 是一个简单易用的服务器资源和计算平台监控工具。�
 
 ## 主要功能
 
+> [!NOTE]
+> TODO: 需要更新截图的版本，以及补充新添加的页面截图
+
+### 主页
+
+<details>
+<summary>点击展开图像</summary>
+
+> [!NOTE]
+> TODO
+
+</details>
+
+
 ### 服务器资源监控
 
 #### GPU 实时状态
@@ -60,6 +74,16 @@ Contrail 是一个简单易用的服务器资源和计算平台监控工具。�
 
 ### AI4S 平台监控
 
+#### AI4S 节点监控
+
+<details>
+<summary>点击展开图像</summary>
+
+> [!NOTE]
+> TODO
+
+</details>
+
 #### AI4S 任务列表
 
 <details>
@@ -67,17 +91,6 @@ Contrail 是一个简单易用的服务器资源和计算平台监控工具。�
 
 ![ai4s tasks](assets/img/ai4s_task_light.png#gh-light-mode-only)
 ![ai4s tasks](assets/img/ai4s_task_dark.png#gh-dark-mode-only)
-
-</details>
-
-
-#### AI4S 费用记录
-
-<details>
-<summary>点击展开图像</summary>
-
-![ai4s fee](assets/img/ai4s_fee_light.png#gh-light-mode-only)
-![ai4s fee](assets/img/ai4s_fee_dark.png#gh-dark-mode-only)
 
 </details>
 
@@ -92,26 +105,30 @@ Contrail 是一个简单易用的服务器资源和计算平台监控工具。�
 pip install -e .[ai4s,web]
 ```
 
-同时在 `config/host_config.json` 中配置主设备的相关信息。
+然后将 `config/host_config.json.template` 复制为 `config/host_config.json`，并根据需要修改其中的相关信息。
 
 
 ### 主设备 - AI4S
 
-> [!NOTE]
-> ai4s 未来也会提供配置文件模板，因此AI4S相关命令仅为临时方案
+复制 `config/ai4s_config.json.template` 为 `config/ai4s_config.json`，并根据需要修改其中的相关信息。
 
 获取 cookies：
 
 ```bash
-python -m contrail.ai4s.ai4s_login --url http://aiplatform.ai4s.sjtu.edu.cn/bml/project/...
+python -m contrail.ai4s.ai4s_login
 ```
 
-然后在 `screenshoots/body.png` 下查看验证码和动态口令二维码
+然后在 `screenshots/login.png` 下查看验证码和动态口令二维码
 
-> [!NOTE]
-> TODO：chromedriver 的路径未来将会由配置文件提供
+与浏览器对应的 chromedriver 可以在配置文件中手动指定，或者使用 `pip install webdriver-manager` 自动下载。
 
-将与浏览器对应的 chromedriver 放在 `resource/chromedriver` 下。
+
+### 主设备 - 用户名映射
+
+复制 `resource/*_usernames.csv.template` 为 `resource/*_usernames.csv`，并根据需要修改其中的相关信息以实现用户名映射功能。其中：
+
+- `ai4s_usernames.csv` 用于映射 AI4S 平台中的用户名
+- `users_usernames.csv` 用于映射各个服务器节点的用户名
 
 
 ### socket 设备
@@ -122,7 +139,19 @@ python -m contrail.ai4s.ai4s_login --url http://aiplatform.ai4s.sjtu.edu.cn/bml/
 pip install -e .
 ```
 
-同时在 `config/sender_config.json` 中配置相关信息。
+同时复制 `config/sender_config.json.template` 为 `config/sender_config.json`，并配置相关信息。
+
+### ssh 设备
+
+仅需安装基本的依赖：
+
+```bash
+pip install -e .
+```
+
+可以通过输入 `contrail log` 命令观察是否能够得到 json 格式输出以确认安装状态。
+
+在主设备的 `config/host_config.json` 中添加对应的 ssh 设备信息。可能需要手动激活环境、导入 `PYTHONPATH` 等，请根据实际情况修改。
 
 
 ## 使用说明
@@ -163,12 +192,12 @@ reload
 运行监控：
 
 ```bash
-python -m contrail.ai4s.ai4s_execute --url http://aiplatform.ai4s.sjtu.edu.cn/bml/project/model-train/notebook/...
+python -m contrail.ai4s
 ```
 
 ### socket 设备
 
-连接到主设备
+在主设备开始监听之后，启动 sender：
 
 ```bash
 contrail sender
