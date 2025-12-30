@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 import plotly.express as px
 import altair as alt
 import datetime as dt
@@ -37,79 +36,20 @@ def load_value(key: str) -> None:
     st.session_state[key] = st.session_state.get("_" + key, None)
 
 
-def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", config={}):
-    DB_PATH = db_path  # 数据库路径
-
-    DURATION = config.get("DURATION", 30)
-    N_GPU = config.get("N_GPU", 8)
-    GMEM = config.get("GMEM", 48)
-    LIMIT = config.get("LIMIT", 1000)
-
-    not_pc = not st.session_state.get("is_session_pc", True)
-    if not_pc:
-        DURATION = DURATION / 2
-
-    st.html(
-        """<style>
-        /* column 修改 */
-        @media (max-width: 640px) {
-            .stColumn {
-                min-width: calc(50% - 1rem);
-            }
-        }
-        </style>"""
-    )
-
-    st.title(f"{hostname}: 实时状态")
-
-    col1, col2, col3 = st.columns([4, 11, 1], vertical_alignment="center")
-
-    col1.checkbox("自动刷新", key="autorefresh", value=True)
-
-    with col3:
-        if st.session_state["autorefresh"]:
-            st_autorefresh(interval=1000, limit=LIMIT, key=f"gpu_monitor_{hostname}")
-
-    curr_refresh = st.session_state.get(f"gpu_monitor_{hostname}", 0)
-    if curr_refresh is not None and LIMIT is not None and curr_refresh >= LIMIT - 1:
-        st.warning(f"标签页长时间未活动，自动刷新已停止：请刷新页面以继续监控。")
-
-    if st.session_state.get(f"_selection_realtime_{hostname}", None) is None:
-        st.session_state[f"_selection_realtime_{hostname}"] = "**详细信息**"
-
-    # 查询时间范围：过去 30 秒
-    def get_time_range():
-        end_time = dt.datetime.now(tz=dt.timezone.utc)
-        start_time = end_time - dt.timedelta(seconds=DURATION)
-        return start_time.strftime("%Y-%m-%d %H:%M:%S"), end_time.strftime("%Y-%m-%d %H:%M:%S")
-
-    start_time, end_time = get_time_range()
-
-    try:
-        # 最新数据
-        gpu_current_df = query_latest_gpu_info(DB_PATH, end_time)
-
-        # 获取数据
-        gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
-
-    except Exception as e:
-        st.error(f"查询数据时出现错误：{e}")
-        logger.error(f"Error querying realtime data: {e}")
-        return
-
-    if not gpu_current_df.empty:
-        current_timestamp = gpu_current_df["timestamp"].max()
-        col2.write(f"更新于：{current_timestamp}")
-
-    # 如果没有数据，提示用户
-    if gpu_utilization_df.empty:
-        st.warning(f"过去 {DURATION} 秒内没有 GPU 数据记录：GPU 监控程序可能离线。")
-        return
-
-    panel_container = st.container()
-
-    st.divider()
-
+# 将主要的绘图和详情查询逻辑提取到外部函数，减少缩进并保持 fragment 简洁
+def render_gpu_content(
+    hostname,
+    DB_PATH,
+    start_time,
+    end_time,
+    gpu_current_df,
+    panel_container,
+    N_GPU,
+    GMEM,
+    DURATION,
+    not_pc,
+):
+    # 基础图表配置
     axis_end = dt.datetime.now() - dt.timedelta(seconds=1)
     axis_start = axis_end - dt.timedelta(seconds=DURATION)
     axis_x = alt.X("timestamp:T").axis(labelSeparation=10).title(None).scale(alt.Scale(domain=(axis_start, axis_end)))
@@ -123,8 +63,6 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
 
     if not_pc:
         gpu_color = gpu_color.legend(orient="bottom", titleOrient="left", columns=4)
-        # gpu_opacity = gpu_opacity.legend(orient="bottom", titleOrient="left", columns=4)
-        # user_color = user_color.legend(orient="top", titleOrient="left", columns=4)
 
     load_value(f"selection_realtime_{hostname}")
     select = st.pills(
@@ -160,9 +98,7 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
         if select == "**详细信息**":
             # GPU 每台设备的利用率折线图
             st.subheader("使用率 %")
-
             base = alt.Chart(gpu_utilization_df).encode(axis_x)
-
             line = base.mark_line().encode(
                 gpu_color,
                 alt.Y("gpu_utilization:Q").title(None).scale(alt.Scale(domain=[0, 100])),
@@ -178,14 +114,11 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
                 .add_params(nearest)
             )
             chart = alt.layer(line, points, rules)
-
             st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
 
             # GPU 内存使用情况
             st.subheader("显存用量 GB")
-
             base = alt.Chart(gpu_memory_df).transform_calculate(memory="datum.used_memory / 0x40000000").encode(axis_x)
-
             line = base.mark_line().encode(
                 gpu_color,
                 alt.Y("memory:Q").title(None).scale(alt.Scale(domain=[0, GMEM])),
@@ -201,7 +134,6 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
                 .add_params(nearest)
             )
             chart = alt.layer(line, points, rules)
-
             st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
 
         elif select == "**用户使用**":
@@ -264,3 +196,94 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
                 )
             )
             st.altair_chart(chart, use_container_width=True)
+
+
+def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", config={}):
+    DB_PATH = db_path
+    DURATION = config.get("DURATION", 30)
+    N_GPU = config.get("N_GPU", 8)
+    GMEM = config.get("GMEM", 48)
+    LIMIT = config.get("LIMIT", 1000)
+
+    not_pc = not st.session_state.get("is_session_pc", True)
+    if not_pc:
+        DURATION = DURATION / 2
+
+    st.html(
+        """<style>
+        @media (max-width: 640px) { .stColumn { min-width: calc(50% - 1rem); } }
+        </style>"""
+    )
+
+    st.title(f"{hostname}: 实时状态")
+
+    col1, col2 = st.columns([4, 12], vertical_alignment="center")
+    upd_container = col2.empty()
+
+    # 刷新次数计数器
+    auto_refresh = col1.checkbox("自动刷新", key="autorefresh", value=True)
+    refresh_interval = 1 if auto_refresh else None
+
+    monitor_key = f"gpu_monitor_count_{hostname}"
+    if monitor_key not in st.session_state:
+        st.session_state[monitor_key] = 0
+
+    prev_refresh_key = f"prev_autorefresh_{hostname}"
+    if auto_refresh and st.session_state.get(prev_refresh_key) is False:
+        st.session_state[monitor_key] = 0
+    st.session_state[prev_refresh_key] = auto_refresh
+
+    # === 定义 Fragment ===
+    @st.fragment(run_every=refresh_interval)
+    def _render_fragment():
+        if auto_refresh:
+            st.session_state[monitor_key] += 1
+
+        if LIMIT is not None and st.session_state[monitor_key] >= LIMIT:
+            st.warning("标签页长时间未活动，自动刷新已暂停：请重新勾选“自动刷新”或刷新页面以继续监控。")
+            return
+
+        if st.session_state.get(f"_selection_realtime_{hostname}", None) is None:
+            st.session_state[f"_selection_realtime_{hostname}"] = "**详细信息**"
+
+        end_time_dt = dt.datetime.now(tz=dt.timezone.utc)
+        start_time_dt = end_time_dt - dt.timedelta(seconds=DURATION)
+        start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            gpu_current_df = query_latest_gpu_info(DB_PATH, end_time)
+
+            check_usage_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
+
+        except Exception as e:
+            st.error(f"查询数据时出现错误：{e}")
+            logger.error(f"Error querying realtime data: {e}")
+            return
+
+        if not gpu_current_df.empty:
+            current_timestamp = gpu_current_df["timestamp"].max()
+            upd_container.write(f"更新于：{current_timestamp}")
+
+        if check_usage_df.empty:
+            st.warning(f"过去 {DURATION} 秒内没有 GPU 数据记录：GPU 监控程序可能离线。")
+            return
+
+        panel_container = st.container()
+        st.divider()
+
+        render_gpu_content(
+            hostname=hostname,
+            DB_PATH=DB_PATH,
+            start_time=start_time,
+            end_time=end_time,
+            gpu_current_df=gpu_current_df,
+            panel_container=panel_container,
+            N_GPU=N_GPU,
+            GMEM=GMEM,
+            DURATION=DURATION,
+            not_pc=not_pc,
+        )
+
+    # === 执行 Fragment ===
+    _render_fragment()
