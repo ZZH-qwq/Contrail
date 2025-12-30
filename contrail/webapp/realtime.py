@@ -36,166 +36,151 @@ def load_value(key: str) -> None:
     st.session_state[key] = st.session_state.get("_" + key, None)
 
 
-# 将主要的绘图和详情查询逻辑提取到外部函数，减少缩进并保持 fragment 简洁
-def render_gpu_content(
-    hostname,
-    DB_PATH,
-    start_time,
-    end_time,
-    gpu_current_df,
-    panel_container,
-    N_GPU,
-    GMEM,
-    DURATION,
-    not_pc,
-):
-    # 基础图表配置
-    axis_end = dt.datetime.now() - dt.timedelta(seconds=1)
-    axis_start = axis_end - dt.timedelta(seconds=DURATION)
-    axis_x = alt.X("timestamp:T").axis(labelSeparation=10).title(None).scale(alt.Scale(domain=(axis_start, axis_end)))
+def get_gpu_color(N_GPU, not_pc):
     gpu_color = alt.Color("gpu_index:N").title("GPU").scale(domain=range(N_GPU), range=COLOR_SCHEME)
-    gpu_opacity = alt.Opacity("gpu_index:N").title("GPU")
-    user_color = alt.Color("user:N").title("用户").scale(range=COLOR_SCHEME)
-
-    nearest = alt.selection_point(nearest=True, on="pointerover", fields=["timestamp"], empty=False)
-    when_near = alt.when(nearest)
-    gpu_tooltips = [alt.Tooltip(str(i), type="quantitative") for i in range(N_GPU)]
-
     if not_pc:
         gpu_color = gpu_color.legend(orient="bottom", titleOrient="left", columns=4)
+    return gpu_color
 
-    load_value(f"selection_realtime_{hostname}")
-    select = st.pills(
-        "信息选择",
-        ["**详细信息**", "**用户使用**", "**汇总数据**"],
-        label_visibility="collapsed",
-        selection_mode="single",
-        key=f"selection_realtime_{hostname}",
-        on_change=store_value,
-        args=(f"selection_realtime_{hostname}",),
-    )
 
+def render_detail_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
     try:
-        if select == "**详细信息**":
-            gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
-            gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
-        elif select == "**用户使用**":
-            user_gpu_df = query_user_gpu_realtime_usage(start_time, end_time, DB_PATH)
-            user_gpu_memory_df = query_user_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
-        elif select == "**汇总数据**":
-            gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
-            gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
-
+        gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
+        gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
     except Exception as e:
-        st.error(f"查询数据时出现错误：{e}")
+        st.error(f"查询详细数据时出现错误：{e}")
         logger.error(f"Error querying realtime details: {e}")
         return
 
-    finally:
-        with panel_container:
-            status_panel(gpu_current_df, N_GPU=N_GPU, GMEM=GMEM)
+    (N_GPU, GMEM, DURATION, not_pc) = PARAMS
+    gpu_tooltips = [alt.Tooltip(str(i), type="quantitative") for i in range(N_GPU)]
+    gpu_color = get_gpu_color(N_GPU, not_pc)
 
-        if select == "**详细信息**":
-            # GPU 每台设备的利用率折线图
-            st.subheader("使用率 %")
-            base = alt.Chart(gpu_utilization_df).encode(axis_x)
-            line = base.mark_line().encode(
-                gpu_color,
-                alt.Y("gpu_utilization:Q").title(None).scale(alt.Scale(domain=[0, 100])),
-            )
-            points = line.mark_point().encode(opacity=when_near.then(alt.value(1)).otherwise(alt.value(0)))
-            rules = (
-                base.transform_pivot("gpu_index", value="gpu_utilization", groupby=["timestamp"])
-                .mark_rule()
-                .encode(
-                    opacity=when_near.then(alt.value(0.3)).otherwise(alt.value(0)),
-                    tooltip=gpu_tooltips,
-                )
-                .add_params(nearest)
-            )
-            chart = alt.layer(line, points, rules)
-            st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
+    # 交互选择器配置
+    nearest = alt.selection_point(nearest=True, on="pointerover", fields=["timestamp"], empty=False)
+    when_near = alt.when(nearest)
 
-            # GPU 内存使用情况
-            st.subheader("显存用量 GB")
-            base = alt.Chart(gpu_memory_df).transform_calculate(memory="datum.used_memory / 0x40000000").encode(axis_x)
-            line = base.mark_line().encode(
-                gpu_color,
-                alt.Y("memory:Q").title(None).scale(alt.Scale(domain=[0, GMEM])),
-            )
-            points = line.mark_point().encode(opacity=when_near.then(alt.value(1)).otherwise(alt.value(0)))
-            rules = (
-                base.transform_pivot("gpu_index", value="memory", groupby=["timestamp"])
-                .mark_rule()
-                .encode(
-                    opacity=when_near.then(alt.value(0.3)).otherwise(alt.value(0)),
-                    tooltip=gpu_tooltips,
-                )
-                .add_params(nearest)
-            )
-            chart = alt.layer(line, points, rules)
-            st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
+    st.subheader("使用率 %")
+    base_util = alt.Chart(gpu_utilization_df).encode(axis_x)
+    line_util = base_util.mark_line().encode(
+        gpu_color,
+        alt.Y("gpu_utilization:Q").title(None).scale(alt.Scale(domain=[0, 100])),
+    )
+    points_util = line_util.mark_point().encode(opacity=when_near.then(alt.value(1)).otherwise(alt.value(0)))
+    rules_util = (
+        base_util.transform_pivot("gpu_index", value="gpu_utilization", groupby=["timestamp"])
+        .mark_rule()
+        .encode(
+            opacity=when_near.then(alt.value(0.3)).otherwise(alt.value(0)),
+            tooltip=gpu_tooltips,
+        )
+        .add_params(nearest)
+    )
+    chart = alt.layer(line_util, points_util, rules_util)
+    st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
 
-        elif select == "**用户使用**":
-            user_gpu_df["user"] = user_gpu_df["user"].apply(lambda x: query_server_username(DB_PATH, x))
-            user_gpu_memory_df["user"] = user_gpu_memory_df["user"].apply(lambda x: query_server_username(DB_PATH, x))
+    st.subheader("显存用量 GB")
+    base_mem = alt.Chart(gpu_memory_df).transform_calculate(memory="datum.used_memory / 0x40000000").encode(axis_x)
+    line_mem = base_mem.mark_line().encode(
+        gpu_color,
+        alt.Y("memory:Q").title(None).scale(alt.Scale(domain=[0, GMEM])),
+    )
+    points_mem = line_mem.mark_point().encode(opacity=when_near.then(alt.value(1)).otherwise(alt.value(0)))
+    rules_mem = (
+        base_mem.transform_pivot("gpu_index", value="memory", groupby=["timestamp"])
+        .mark_rule()
+        .encode(
+            opacity=when_near.then(alt.value(0.3)).otherwise(alt.value(0)),
+            tooltip=gpu_tooltips,
+        )
+        .add_params(nearest)
+    )
+    chart = alt.layer(line_mem, points_mem, rules_mem)
+    st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
 
-            st.subheader("用户使用率 %")
-            chart = (
-                alt.Chart(user_gpu_df)
-                .mark_area()
-                .encode(
-                    user_color,
-                    gpu_opacity,
-                    axis_x,
-                    alt.Y("gpu_utilization:Q").title(None),
-                )
-            )
-            st.altair_chart(chart, use_container_width=True)
 
-            st.subheader("用户显存用量 GB")
-            chart = (
-                alt.Chart(user_gpu_memory_df)
-                .transform_calculate(memory="datum.used_memory / 0x40000000")
-                .mark_area()
-                .encode(
-                    user_color,
-                    gpu_opacity,
-                    axis_x,
-                    alt.Y("memory:Q").title(None),
-                )
-            )
-            st.altair_chart(chart, use_container_width=True)
+def render_user_view(start_time, end_time, DB_PATH, axis_x):
+    try:
+        user_gpu_df = query_user_gpu_realtime_usage(start_time, end_time, DB_PATH)
+        user_gpu_memory_df = query_user_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
 
-        elif select == "**汇总数据**":
-            # 总 GPU 使用率折线图
-            st.subheader("总使用率 %")
-            chart = (
-                alt.Chart(gpu_utilization_df)
-                .mark_area()
-                .encode(
-                    gpu_color,
-                    axis_x,
-                    alt.Y("gpu_utilization:Q").title(None).scale(alt.Scale(domain=[0, 100 * N_GPU])),
-                    alt.FillOpacityValue(0.5),
-                )
-            )
-            st.altair_chart(chart, use_container_width=True)
+        # 处理用户名
+        user_gpu_df["user"] = user_gpu_df["user"].apply(lambda x: query_server_username(DB_PATH, x))
+        user_gpu_memory_df["user"] = user_gpu_memory_df["user"].apply(lambda x: query_server_username(DB_PATH, x))
+    except Exception as e:
+        st.error(f"查询用户数据时出现错误：{e}")
+        logger.error(f"Error querying user data: {e}")
+        return
 
-            # 总显存用量情况
-            st.subheader("总显存用量 GB")
-            chart = (
-                alt.Chart(gpu_memory_df)
-                .transform_calculate(memory="datum.used_memory / 0x40000000")
-                .mark_area()
-                .encode(
-                    gpu_color,
-                    axis_x,
-                    alt.Y("memory:Q").title(None).scale(alt.Scale(domain=[0, GMEM * N_GPU])),
-                    alt.FillOpacityValue(0.5),
-                )
-            )
-            st.altair_chart(chart, use_container_width=True)
+    gpu_opacity = alt.Opacity("gpu_index:N").title("GPU")
+    user_color = alt.Color("user:N").title("用户").scale(range=COLOR_SCHEME)
+
+    st.subheader("用户使用率 %")
+    st.altair_chart(
+        alt.Chart(user_gpu_df)
+        .mark_area()
+        .encode(
+            user_color,
+            gpu_opacity,
+            axis_x,
+            alt.Y("gpu_utilization:Q").title(None),
+        ),
+        use_container_width=True,
+    )
+
+    st.subheader("用户显存用量 GB")
+    st.altair_chart(
+        alt.Chart(user_gpu_memory_df)
+        .transform_calculate(memory="datum.used_memory / 0x40000000")
+        .mark_area()
+        .encode(
+            user_color,
+            gpu_opacity,
+            axis_x,
+            alt.Y("memory:Q").title(None),
+        ),
+        use_container_width=True,
+    )
+
+
+def render_summary_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
+    try:
+        gpu_utilization_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
+        gpu_memory_df = query_gpu_memory_realtime_usage(start_time, end_time, DB_PATH)
+    except Exception as e:
+        st.error(f"查询汇总数据时出现错误：{e}")
+        logger.error(f"Error querying summary data: {e}")
+        return
+
+    (N_GPU, GMEM, DURATION, not_pc) = PARAMS
+    gpu_color = get_gpu_color(N_GPU, not_pc)
+
+    st.subheader("总使用率 %")
+    st.altair_chart(
+        alt.Chart(gpu_utilization_df)
+        .mark_area()
+        .encode(
+            gpu_color,
+            axis_x,
+            alt.Y("gpu_utilization:Q").title(None).scale(alt.Scale(domain=[0, 100 * N_GPU])),
+            alt.FillOpacityValue(0.5),
+        ),
+        use_container_width=True,
+    )
+
+    st.subheader("总显存用量 GB")
+    st.altair_chart(
+        alt.Chart(gpu_memory_df)
+        .transform_calculate(memory="datum.used_memory / 0x40000000")
+        .mark_area()
+        .encode(
+            gpu_color,
+            axis_x,
+            alt.Y("memory:Q").title(None).scale(alt.Scale(domain=[0, GMEM * N_GPU])),
+            alt.FillOpacityValue(0.5),
+        ),
+        use_container_width=True,
+    )
 
 
 def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", config={}):
@@ -221,7 +206,9 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
     upd_container = col2.empty()
 
     # 刷新次数计数器
-    auto_refresh = col1.checkbox("自动刷新", key="autorefresh", value=True)
+    if "autorefresh" not in st.session_state:
+        st.session_state["autorefresh"] = True
+    auto_refresh = col1.checkbox("自动刷新", key="autorefresh")
     refresh_interval = 1 if auto_refresh else None
 
     monitor_key = f"gpu_monitor_count_{hostname}"
@@ -233,6 +220,21 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
         st.session_state[monitor_key] = 0
     st.session_state[prev_refresh_key] = auto_refresh
 
+    warning_container = st.empty()
+    panel_empty = st.empty()
+    st.divider()
+
+    load_value(f"selection_realtime_{hostname}")
+    select = st.pills(
+        "信息选择",
+        ["**详细信息**", "**用户使用**", "**汇总数据**"],
+        label_visibility="collapsed",
+        selection_mode="single",
+        key=f"selection_realtime_{hostname}",
+        on_change=store_value,
+        args=(f"selection_realtime_{hostname}",),
+    )
+
     # === 定义 Fragment ===
     @st.fragment(run_every=refresh_interval)
     def _render_fragment():
@@ -240,8 +242,12 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
             st.session_state[monitor_key] += 1
 
         if LIMIT is not None and st.session_state[monitor_key] >= LIMIT:
-            st.warning("标签页长时间未活动，自动刷新已暂停：请重新勾选“自动刷新”或刷新页面以继续监控。")
-            return
+            st.session_state["autorefresh"] = False
+            st.session_state[monitor_key] = -1
+            st.rerun()
+
+        if st.session_state[monitor_key] == -1:
+            warning_container.warning("标签页长时间未活动，自动刷新已停止：请重新勾选或刷新页面以继续监控。")
 
         if st.session_state.get(f"_selection_realtime_{hostname}", None) is None:
             st.session_state[f"_selection_realtime_{hostname}"] = "**详细信息**"
@@ -257,7 +263,7 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
             check_usage_df = query_gpu_realtime_usage(start_time, end_time, DB_PATH)
 
         except Exception as e:
-            st.error(f"查询数据时出现错误：{e}")
+            warning_container.error(f"查询数据时出现错误：{e}")
             logger.error(f"Error querying realtime data: {e}")
             return
 
@@ -266,24 +272,27 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
             upd_container.write(f"更新于：{current_timestamp}")
 
         if check_usage_df.empty:
-            st.warning(f"过去 {DURATION} 秒内没有 GPU 数据记录：GPU 监控程序可能离线。")
+            warning_container.warning(f"过去 {DURATION} 秒内没有 GPU 数据记录：GPU 监控程序可能离线。")
             return
 
-        panel_container = st.container()
-        st.divider()
+        with panel_empty.container():
+            status_panel(gpu_current_df, N_GPU=N_GPU, GMEM=GMEM)
 
-        render_gpu_content(
-            hostname=hostname,
-            DB_PATH=DB_PATH,
-            start_time=start_time,
-            end_time=end_time,
-            gpu_current_df=gpu_current_df,
-            panel_container=panel_container,
-            N_GPU=N_GPU,
-            GMEM=GMEM,
-            DURATION=DURATION,
-            not_pc=not_pc,
+        # 基础图表配置
+        axis_end = dt.datetime.now() - dt.timedelta(seconds=1)
+        axis_start = axis_end - dt.timedelta(seconds=DURATION)
+        axis_x = (
+            alt.X("timestamp:T").axis(labelSeparation=10).title(None).scale(alt.Scale(domain=(axis_start, axis_end)))
         )
+        PARAMS = (N_GPU, GMEM, DURATION, not_pc)
+
+        # 根据选择渲染不同视图
+        if select == "**详细信息**" or select is None:
+            render_detail_view(start_time, end_time, DB_PATH, axis_x, PARAMS)
+        elif select == "**用户使用**":
+            render_user_view(start_time, end_time, DB_PATH, axis_x)
+        elif select == "**汇总数据**":
+            render_summary_view(start_time, end_time, DB_PATH, axis_x, PARAMS)
 
     # === 执行 Fragment ===
     _render_fragment()
