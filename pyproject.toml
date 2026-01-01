@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "contrail"
+version = "26.1.0"
+description = "Contrail project"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "loguru",
+    "numpy",
+    "nvidia-ml-py",
+    "pandas",
+    "psutil",
+    "schedule",
+]
+
+[project.optional-dependencies]
+ai4s = [
+    "selenium",
+    "openpyxl",
+]
+web = [
+    "altair",
+    "pillow",
+    "plotly",
+    "streamlit==1.41.0",
+    "streamlit-autorefresh",
+    "streamlit-javascript",
+    "user-agents",
+]
+
+[project.scripts]
+contrail = "contrail.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
