@@ -139,9 +139,12 @@ def main():
             max-width: 60vw;
             min-width: 0;
         }
+        section.stSidebar[aria-expanded="false"] {
+            width: 0 !important;
+        }
         /* 侧边栏 - 折叠按钮 */
-        div[data-testid="stSidebarCollapsedControl"] button {
-            margin: -6px 0px -6px -45px;
+        button[data-testid="stExpandSidebarButton"] {
+            margin: -6px 0px -6px -56px;
             padding: 10px 10px 10px 50px;
         }
         /* 自定义导航栏 */
@@ -153,6 +156,8 @@ def main():
             flex-direction: row;
             justify-content: left;
             align-items: flex-start;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
             margin-top: -0.375rem;
             margin-bottom: -0.375rem;
         }

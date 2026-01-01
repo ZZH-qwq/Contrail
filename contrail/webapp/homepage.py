@@ -72,7 +72,11 @@ def device_status(device, timestamp: str):
     if gpu_current_df.empty:
         st.subheader(name)
         st.write(
-            "<hr style='margin: 10px 0 5px 0;'><span style='color: orange;'>无法读取 GPU 数据</span>",
+            "<hr style='margin: 4px 0 12px 0; height: 10px;'>",
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "<span style='color: orange;'>无法读取 GPU 数据</span>",
             unsafe_allow_html=True,
         )
         return None
@@ -137,7 +141,9 @@ def webapp_homepage(pages, configs, md_content=None):
         }
         /* 主页 - 标注 */
         .stColumn div[data-testid="stCaptionContainer"] > p {
-            margin-bottom: 10px;
+            height: 1.2em;
+            margin-top: -0.4em;
+            margin-bottom: 1.2em;
         }
         /* 主页 - 设备操作按钮 */
         .stColumn a[data-testid="stPageLink-NavLink"] {
@@ -150,8 +156,7 @@ def webapp_homepage(pages, configs, md_content=None):
         }
         /* column 修改 */
         @media (max-width: 640px) {
-            .stColumn .stColunm,
-            .st-emotion-cache-1eoatk1 {
+            .stColumn .stColumn {
                 min-width: calc(50% - 1rem) !important;
             }
         }
