@@ -190,14 +190,14 @@ def webapp_ai4s_status():
         yaxis=dict(tickfont=dict(size=14)),
     )
 
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, width="stretch")
 
     st.subheader("各节点资源详情")
 
     display_df = df[["Full ID", "GPU", "CPU", "Memory(GB)"]].copy()
     st.dataframe(
         display_df.style.background_gradient(cmap="Blues", subset=["GPU", "CPU", "Memory(GB)"]),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Full ID": st.column_config.TextColumn(label="节点 ID"),

@@ -77,7 +77,7 @@ def render_detail_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
         .add_params(nearest)
     )
     chart = alt.layer(line_util, points_util, rules_util)
-    st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
+    st.altair_chart(chart, width="stretch")  # pyright: ignore[reportArgumentType]
 
     st.subheader("显存用量 GB")
     base_mem = alt.Chart(gpu_memory_df).transform_calculate(memory="datum.used_memory / 0x40000000").encode(axis_x)
@@ -96,7 +96,7 @@ def render_detail_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
         .add_params(nearest)
     )
     chart = alt.layer(line_mem, points_mem, rules_mem)
-    st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
+    st.altair_chart(chart, width="stretch")  # pyright: ignore[reportArgumentType]
 
 
 def render_user_view(start_time, end_time, DB_PATH, axis_x):
@@ -125,7 +125,7 @@ def render_user_view(start_time, end_time, DB_PATH, axis_x):
             axis_x,
             alt.Y("gpu_utilization:Q").title(None),
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.subheader("用户显存用量 GB")
@@ -139,7 +139,7 @@ def render_user_view(start_time, end_time, DB_PATH, axis_x):
             axis_x,
             alt.Y("memory:Q").title(None),
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -165,7 +165,7 @@ def render_summary_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
             alt.Y("gpu_utilization:Q").title(None).scale(alt.Scale(domain=[0, 100 * N_GPU])),
             alt.FillOpacityValue(0.5),
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.subheader("总显存用量 GB")
@@ -179,7 +179,7 @@ def render_summary_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
             alt.Y("memory:Q").title(None).scale(alt.Scale(domain=[0, GMEM * N_GPU])),
             alt.FillOpacityValue(0.5),
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
 

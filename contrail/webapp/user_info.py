@@ -40,7 +40,7 @@ def webapp_user_info():
             filter_user("server", search_input).style.map(
                 lambda s: highlight_matches(search_input, s), subset=pd.IndexSlice[:, :]
             ),
-            use_container_width=True,
+            width="stretch",
         )
     with st.container():
         st.subheader("AI4S")
@@ -48,7 +48,7 @@ def webapp_user_info():
             filter_user("ai4s", search_input).style.map(
                 lambda s: highlight_matches(search_input, s), subset=pd.IndexSlice[:, :]
             ),
-            use_container_width=True,
+            width="stretch",
         )
 
     with st.expander(""):

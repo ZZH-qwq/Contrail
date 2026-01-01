@@ -77,7 +77,7 @@ def display_data(i, task, key="last"):
         fig.update_layout(
             hovermode="x", yaxis_title="GPU 使用率 %", xaxis_title=None, margin=dict(l=0, r=0, t=0, b=0), height=120
         )
-        st.plotly_chart(fig, use_container_width=True, key=f"{key}_{task['task_name']}_gpu")
+        st.plotly_chart(fig, width="stretch", key=f"{key}_{task['task_name']}_gpu")
     with gmem:
         timestamps, values = get_data(task["data"], "accelerator_memory_used_bytes")
         values_gb = [x / 1024**3 for x in values]
@@ -87,7 +87,7 @@ def display_data(i, task, key="last"):
         fig.update_layout(
             hovermode="x", yaxis_title="显存用量 GB", xaxis_title=None, margin=dict(l=0, r=0, t=0, b=0), height=120
         )
-        st.plotly_chart(fig, use_container_width=True, key=f"{key}_{task['task_name']}_gmem")
+        st.plotly_chart(fig, width="stretch", key=f"{key}_{task['task_name']}_gmem")
 
 
 def render_update(updated_at):

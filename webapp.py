@@ -77,31 +77,31 @@ def feature_pages():
 
 
 def custom_navigate(home, devices, features):
-    # if st.button("**Contrail 主页**", use_container_width=True):
+    # if st.button("**Contrail 主页**", width="stretch"):
     #     st.switch_page(home)
-    st.page_link(home, label="**Contrail 主页**", use_container_width=True)
+    st.page_link(home, label="**Contrail 主页**", width="stretch")
 
     st.markdown("""<hr style="margin: 10px -10px 10px -10px;">""", unsafe_allow_html=True)
     st.markdown("#### 设备监控")
 
     for device_name, device_pages in devices.items():
         if enabled_features.history_only:
-            st.page_link(device_pages[0], label=device_name, use_container_width=True)
+            st.page_link(device_pages[0], label=device_name, width="stretch")
         else:
-            with st.popover(device_name, use_container_width=True):
+            with st.popover(device_name, width="stretch"):
                 for page in device_pages:
-                    st.page_link(page, label=page.title, use_container_width=True)
+                    st.page_link(page, label=page.title, width="stretch")
 
     st.markdown("""<hr style="margin: 5px -10px 10px -10px;">""", unsafe_allow_html=True)
     st.markdown("#### 其它功能")
 
     for feature_name, feature_pages in features.items():
         if len(feature_pages) == 1:
-            st.page_link(feature_pages[0], label=feature_pages[0].title, use_container_width=True)
+            st.page_link(feature_pages[0], label=feature_pages[0].title, width="stretch")
         else:
-            with st.popover(feature_name, use_container_width=True):
+            with st.popover(feature_name, width="stretch"):
                 for page in feature_pages:
-                    st.page_link(page, label=page.title, use_container_width=True)
+                    st.page_link(page, label=page.title, width="stretch")
 
 
 def main():

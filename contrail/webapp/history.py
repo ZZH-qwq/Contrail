@@ -64,7 +64,7 @@ def gpu_chart_band(df, y_label, N_GPU=8):
         margin=dict(l=0, r=0, t=5, b=5),
         legend=dict(orientation="h", yanchor="top", xanchor="right", y=-0.1, x=1),
     )
-    st.plotly_chart(fig, use_container_width=True, key=f"{y_label}_band")
+    st.plotly_chart(fig, width="stretch", key=f"{y_label}_band")
 
 
 def gpu_chart_user(user_usage_grouped, y_label, db_path, N_GPU=8):
@@ -125,7 +125,7 @@ def gpu_chart_user(user_usage_grouped, y_label, db_path, N_GPU=8):
         margin=dict(l=0, r=0, t=5, b=5),
         legend=dict(orientation="h", yanchor="top", xanchor="right", y=-0.1, x=1),
     )
-    st.plotly_chart(fig, use_container_width=True, key=f"{y_label}_user")
+    st.plotly_chart(fig, width="stretch", key=f"{y_label}_user")
 
 
 def gpu_chart_stack(df, y_label, y_max):
@@ -164,7 +164,7 @@ def gpu_chart_stack(df, y_label, y_max):
         margin=dict(l=0, r=0, t=5, b=5),
         legend=dict(orientation="h", yanchor="top", xanchor="right", y=-0.1, x=1, title_text=None),
     )
-    st.plotly_chart(fig, use_container_width=True, key=f"{y_label}_stack")
+    st.plotly_chart(fig, width="stretch", key=f"{y_label}_stack")
 
 
 def gpu_chart_average(df, y_label, y_max, title, containers, N_GPU=8):
@@ -182,7 +182,7 @@ def gpu_chart_average(df, y_label, y_max, title, containers, N_GPU=8):
         .configure_legend(disable=True)
         .properties(height=50, padding={"top": 0, "bottom": 0})
     )
-    containers[1].altair_chart(fig, use_container_width=True)
+    containers[1].altair_chart(fig, width="stretch")
 
 
 def celi_to_quarter(time):
@@ -267,7 +267,7 @@ def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db", config
     start_time = dt.datetime.combine(start_date, start_time).astimezone(dt.timezone.utc)
     end_time = dt.datetime.combine(end_date, end_time).astimezone(dt.timezone.utc)
 
-    reset.button("重置", use_container_width=True, on_click=reset_button)
+    reset.button("重置", width="stretch", on_click=reset_button)
 
     if start_time >= end_time:
         st.error("开始时间必须早于结束时间。")
