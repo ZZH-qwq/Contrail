@@ -7,6 +7,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from contrail.utils.config import query_ai4s_username
+from contrail.webapp.framework.widgets import render_update_time
 
 WARNING_THRESHOLD = dt.timedelta(minutes=20)
 FALLBACK_THRESHOLD = dt.timedelta(minutes=20)
@@ -90,16 +91,6 @@ def display_data(i, task, key="last"):
         st.plotly_chart(fig, width="stretch", key=f"{key}_{task['task_name']}_gmem")
 
 
-def render_update(updated_at):
-    if not updated_at:
-        st.write("未找到记录")
-        return
-
-    delta_minutes = (dt.datetime.now() - updated_at).total_seconds() // 60
-    formatted_time = updated_at.strftime("%Y-%m-%d %H:%M:%S")
-    st.write(f"更新于 {formatted_time} / {delta_minutes:.0f} 分钟前")
-
-
 def render_tasks(tasks, key="last"):
     if not tasks:
         st.info("没有正在运行的任务。")
@@ -111,13 +102,14 @@ def render_tasks(tasks, key="last"):
 def webapp_ai4s():
     st.title("AI4S: 任务列表")
 
-    col1, col2, col3 = st.columns([4, 11, 1], vertical_alignment="center")
+    status_content = st.container(horizontal=True, vertical_alignment="center")
 
-    col1.checkbox("自动刷新", key="ai4s_autorefresh", value=True)
+    with status_content:
+        st.checkbox("自动刷新", key="ai4s_autorefresh", value=True)
+        st.space(size="medium")
 
-    with col3:
-        if st.session_state["ai4s_autorefresh"]:
-            st_autorefresh(interval=60000, key="ai4s_task_monitor")
+    if st.session_state["ai4s_autorefresh"]:
+        st_autorefresh(interval=60000, key="ai4s_task_monitor")
 
     current_payload, current_updated_at, current_error = load_json_payload(DEFAULT_DATA_FILE)
     success_payload, success_updated_at, _ = load_json_payload(SUCCESS_DATA_FILE)
@@ -129,8 +121,8 @@ def webapp_ai4s():
     current_state, current_tasks = extract_state_and_tasks(current_payload)
     _, success_tasks = extract_state_and_tasks(success_payload)
 
-    with col2:
-        render_update(current_updated_at)
+    with status_content:
+        render_update_time(current_updated_at)
     if dt.datetime.now() - current_updated_at >= WARNING_THRESHOLD:
         st.warning("过去 20 分钟内没有任务数据更新：AI4S 爬虫程序可能离线。")
 
@@ -149,7 +141,7 @@ def webapp_ai4s():
 
     if succ_container:
         with succ_container:
-            render_update(success_updated_at)
+            render_update_time(success_updated_at)
             render_tasks(success_tasks, key="success")
     with curr_container:
         render_tasks(current_tasks, key="last")

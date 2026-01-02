@@ -202,14 +202,16 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
 
     st.title(f"{hostname}: 实时状态")
 
-    col1, col2 = st.columns([4, 12], vertical_alignment="center")
-    upd_container = col2.empty()
+    status_content = st.container(horizontal=True, vertical_alignment="center")
 
     # 刷新次数计数器
     if "autorefresh" not in st.session_state:
         st.session_state["autorefresh"] = True
-    auto_refresh = col1.checkbox("自动刷新", key="autorefresh")
+    auto_refresh = status_content.checkbox("自动刷新", key="autorefresh")
     refresh_interval = 1 if auto_refresh else None
+
+    status_content.space(size="medium")
+    upd_container = status_content.empty()
 
     monitor_key = f"gpu_monitor_count_{hostname}"
     if monitor_key not in st.session_state:

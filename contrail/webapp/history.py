@@ -7,6 +7,7 @@ import numpy as np
 
 from contrail.gpu.GPU_query_db import *
 from contrail.utils.config import query_server_username
+from contrail.webapp.framework.widgets import render_update_time
 
 # pyright: basic
 
@@ -280,7 +281,7 @@ def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db", config
         st.error("开始时间必须早于结束时间。")
     else:
         if latest_timestamp is not None:
-            st.write(f"数据更新于：{latest_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+            render_update_time(latest_timestamp)
 
             # 更新令牌 用于区分 cache
             if end_time > latest_timestamp.astimezone(dt.timezone.utc):

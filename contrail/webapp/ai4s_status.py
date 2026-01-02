@@ -7,6 +7,8 @@ import plotly.express as px
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
+from contrail.webapp.framework.widgets import render_update_time
+
 WARNING_THRESHOLD = dt.timedelta(minutes=20)
 DEFAULT_STATUS_FILE = "data/ai4s_quota_status.json"
 
@@ -71,34 +73,25 @@ def parse_nodes_quota(payload):
     return df, None
 
 
-def render_update(updated_at):
-    if not updated_at:
-        st.write("未找到记录")
-        return
-
-    delta_minutes = (dt.datetime.now() - updated_at).total_seconds() // 60
-    formatted_time = updated_at.strftime("%Y-%m-%d %H:%M:%S")
-    st.write(f"更新于 {formatted_time} / {delta_minutes:.0f} 分钟前")
-
-
 def webapp_ai4s_status():
     st.title("AI4S 节点监控")
 
-    col1, col2, col3 = st.columns([4, 11, 1], vertical_alignment="center")
+    status_content = st.container(horizontal=True, vertical_alignment="center")
 
-    col1.checkbox("自动刷新", key="ai4s_status_autorefresh", value=True)
+    with status_content:
+        st.checkbox("自动刷新", key="ai4s_status_autorefresh", value=True)
+        st.space(size="medium")
 
-    with col3:
-        if st.session_state.get("ai4s_status_autorefresh", True):
-            st_autorefresh(interval=60000, key="ai4s_status_monitor")
+    if st.session_state["ai4s_status_autorefresh"]:
+        st_autorefresh(interval=60000, key="ai4s_status_monitor")
 
     payload, updated_at, error = load_quota_payload()
     if error:
         st.error(error)
         return
 
-    with col2:
-        render_update(updated_at)
+    with status_content:
+        render_update_time(updated_at)
 
     if not updated_at or dt.datetime.now() - updated_at >= WARNING_THRESHOLD:
         st.warning("过去 20 分钟内没有配额数据更新：AI4S 爬虫程序可能离线。")
