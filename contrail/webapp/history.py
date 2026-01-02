@@ -185,12 +185,14 @@ def gpu_chart_average(df, y_label, y_max, title, containers, N_GPU=8):
     containers[1].altair_chart(fig, width="stretch")
 
 
-def celi_to_quarter(time):
+def celi_to_quarter(time) -> dt.datetime:
     minute = (time.minute // 15 + 1) * 15
     if minute == 60:
         time = (time + dt.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
     else:
         time = time.replace(minute=minute, second=0, microsecond=0)
+    if isinstance(time, pd.Timestamp):
+        time = time.to_pydatetime()
     return time
 
 
@@ -241,31 +243,36 @@ def webapp_history(hostname="Virgo", db_path="data/gpu_history_virgo.db", config
 
     def reset_button():
         default_start_time, default_end_time, _, _, _ = get_default_time(DB_PATH)
-        st.session_state["start_date"] = default_start_time.date()
-        st.session_state["end_date"] = default_end_time.date()
-        st.session_state["start_time"] = default_start_time.time()
-        st.session_state["end_time"] = default_end_time.time()
+        st.session_state["start_datetime_input"] = default_start_time
+        st.session_state["end_datetime_input"] = default_end_time
         return
 
-    if st.session_state.get(f"_selection_history_{hostname}", None) is None:
+    if "start_datetime_input" not in st.session_state:
+        reset_button()
+
+    if f"_selection_history_{hostname}" not in st.session_state:
         st.session_state[f"_selection_history_{hostname}"] = "**详细信息**"
 
     # 日期范围选择
     col1, col2, reset = st.columns([5, 5, 2], vertical_alignment="bottom")
 
-    start_date = col1.date_input(
-        "开始时间", value=default_start_time, key="start_date", min_value=oldest_time, max_value=latest_time
+    start_input = col1.datetime_input(
+        "开始时间",
+        min_value=oldest_time,
+        max_value=latest_time,
+        key="start_datetime_input",
     )
-    start_time = col1.time_input("开始时间", value=default_start_time, key="start_time", label_visibility="collapsed")
-    end_date = col2.date_input(
-        "结束时间", value=default_end_time, key="end_date", min_value=oldest_time, max_value=latest_time
+    end_input = col2.datetime_input(
+        "结束时间",
+        min_value=oldest_time,
+        max_value=latest_time,
+        key="end_datetime_input",
     )
-    end_time = col2.time_input("结束时间", value=default_end_time, key="end_time", label_visibility="collapsed")
 
-    assert isinstance(start_date, dt.date)
-    assert isinstance(end_date, dt.date)
-    start_time = dt.datetime.combine(start_date, start_time).astimezone(dt.timezone.utc)
-    end_time = dt.datetime.combine(end_date, end_time).astimezone(dt.timezone.utc)
+    assert isinstance(start_input, dt.datetime)
+    assert isinstance(end_input, dt.datetime)
+    start_time = start_input.astimezone(dt.timezone.utc)
+    end_time = end_input.astimezone(dt.timezone.utc)
 
     reset.button("重置", width="stretch", on_click=reset_button)
 
