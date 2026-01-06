@@ -4,10 +4,12 @@ import os
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from contrail.webapp.framework.widgets import render_update_time
+
 
 WARNING_THRESHOLD = dt.timedelta(minutes=20)
 DEFAULT_STATUS_FILE = "data/ai4s_quota_status.json"
@@ -32,6 +34,46 @@ def cached_read_data(update_time, file_path=DEFAULT_STATUS_FILE):
         return json.load(file)
 
 
+def parse_resource_summary(payload):
+    """解析资源池概览数据 (CPU/GPU/内存 的总量与使用量)"""
+    if not isinstance(payload, dict):
+        return None, "数据格式错误：不是字典。"
+
+    try:
+        res_info = payload.get("resource_info", {})
+        if not res_info:
+            return None, "数据格式错误：缺少 resource_info。"
+
+        quota = res_info.get("quota", {})
+        avail = res_info.get("availableQuota", {})
+
+        # CPU
+        cpu_total = quota.get("cpu", 0)
+        cpu_avail = avail.get("cpu", 0)
+
+        # GPU
+        if len(quota.get("scalarResources", {})) != 1:
+            return None, "数据格式错误：scalarResources 包含多种 GPU 类型，无法解析总量。"
+        gpu_total = list(quota.get("scalarResources", {}).values())[0]
+        gpu_avail = list(avail.get("scalarResources", {}).values())[0]
+
+        # 内存 (MB -> GB)
+        mem_total_mb = quota.get("memory", 0)
+        mem_avail_mb = avail.get("memory", 0)
+
+        mem_total_gb = int(mem_total_mb / 1024)
+        mem_avail_gb = int(mem_avail_mb / 1024)
+
+        return {
+            "cpu": {"avail": cpu_avail, "total": cpu_total},
+            "gpu": {"avail": gpu_avail, "total": gpu_total},
+            "mem": {"avail": mem_avail_gb, "total": mem_total_gb},
+        }, None
+
+    except Exception as exc:
+        return None, f"概览数据解析失败：{exc}"
+
+
 def parse_nodes_quota(payload):
     if not isinstance(payload, dict):
         return None, "数据格式错误：不是字典。"
@@ -47,7 +89,10 @@ def parse_nodes_quota(payload):
     rows = []
     for node_id, metrics in nodes_quota.items():
         try:
-            gpu_count = metrics.get("scalarResources", {}).get("nvidia/NVIDIA-A800-SXM4-80GB", 0)
+            gpus = metrics.get("scalarResources", {})
+            if len(gpus) != 1:
+                return None, f"节点 {node_id} 包含多种 GPU 类型，无法解析配额。"
+            gpu_count = list(gpus.values())[0]
             try:
                 short_name = f"#{node_id.split('-')[4].split('.')[0]}"
             except Exception:
@@ -73,6 +118,35 @@ def parse_nodes_quota(payload):
     return df, None
 
 
+def create_donut_chart(avail_val, total_val, color_used="rgba(243, 128, 1, 0.5)", color_free="rgb(61, 157, 243)"):
+    used_val = total_val - avail_val
+
+    fig = go.Figure(
+        data=[
+            go.Pie(
+                values=[used_val, avail_val],
+                labels=["Used", "Free"],
+                hole=0.6,
+                marker=dict(colors=[color_used, color_free]),
+                textinfo="none",
+                hoverinfo="label+value",
+                sort=False,
+                direction="clockwise",
+                rotation=0,
+            )
+        ]
+    )
+
+    fig.update_layout(
+        showlegend=False,
+        margin=dict(l=10, r=10, t=10, b=10),
+        height=160,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
 def webapp_ai4s_status():
     st.title("AI4S 节点监控")
 
@@ -96,6 +170,7 @@ def webapp_ai4s_status():
     if not updated_at or dt.datetime.now() - updated_at >= WARNING_THRESHOLD:
         st.warning("过去 20 分钟内没有配额数据更新：AI4S 爬虫程序可能离线。")
 
+    summary_data, summary_error = parse_resource_summary(payload)
     df, parse_error = parse_nodes_quota(payload)
     if parse_error:
         st.error(parse_error)
@@ -113,7 +188,7 @@ def webapp_ai4s_status():
             padding-bottom: 0.5rem;
         }
         /* 调整卡片背景 */
-        .stHorizontalBlock > .stColumn:first-child:has(.stMarkdown) {
+        .stHorizontalBlock > .stColumn:first-child:has(div[data-testid="stCaptionContainer"]) {
             background-color: light-dark(rgba(28, 131, 225, 0.1), rgba(61, 157, 243, 0.2));
             border-color: light-dark(rgba(28, 131, 225, 0.3), rgba(61, 157, 243, 0.4));
         }
@@ -132,6 +207,53 @@ def webapp_ai4s_status():
         }
         </style>"""
     )
+
+    if summary_error:
+        st.warning(f"概览图加载失败: {summary_error}")
+    else:
+        metrics_display = [
+            {
+                "title": "GPU",
+                "avail": summary_data["gpu"]["avail"],
+                "total": summary_data["gpu"]["total"],
+                "unit": "",
+            },
+            {
+                "title": "CPU",
+                "avail": summary_data["cpu"]["avail"],
+                "total": summary_data["cpu"]["total"],
+                "unit": "",
+            },
+            {
+                "title": "MEM",
+                "avail": summary_data["mem"]["avail"],
+                "total": summary_data["mem"]["total"],
+                "unit": "GB",
+            },
+        ]
+
+        # 使用 columns 布局三个图表
+        st.subheader("资源概览")
+        cols = st.columns(3)
+
+        for col, item in zip(cols, metrics_display):
+            with col:
+                st.markdown(
+                    f"<div style='text-align: center; color: #555; font-size: 1rem;'>{item['title']}</div>",
+                    unsafe_allow_html=True,
+                )
+
+                fig = create_donut_chart(item["avail"], item["total"])
+                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+                unit_str = item["unit"]
+                text_label = f"剩余: {item['avail']}{unit_str} / {item['total']}{unit_str}"
+                st.markdown(
+                    f"<div style='text-align: center; color: #666; font-size: 0.9rem; margin-top: -10px;'>{text_label}</div>",
+                    unsafe_allow_html=True,
+                )
+
+    st.divider()
 
     best_node = df.iloc[0]
 
