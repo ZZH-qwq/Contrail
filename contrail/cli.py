@@ -44,6 +44,21 @@ def run_monitor():
     manager.monitor()
 
 
+def run_web(port: int):
+    """Start the Streamlit web app with Contrail's HTTP endpoints installed."""
+    from streamlit.web import bootstrap
+
+    from contrail.webapp.text_status import install_gpu_status_route
+
+    flag_options = {}
+    if port is not None:
+        flag_options["server.port"] = port
+
+    install_gpu_status_route()
+    bootstrap.load_config_options(flag_options)
+    bootstrap.run("webapp.py", False, [], flag_options)
+
+
 def main():
     parser = argparse.ArgumentParser(prog="contrail")
     subparsers = parser.add_subparsers(dest="command")
@@ -57,6 +72,9 @@ def main():
     # monitor 命令
     subparsers.add_parser("monitor", help="Start GPU monitoring")
 
+    web_parser = subparsers.add_parser("web", help="Start the web app")
+    web_parser.add_argument("--port", type=int, default=3333, help="Streamlit server port")
+
     args = parser.parse_args()
 
     if args.command == "log":
@@ -65,6 +83,8 @@ def main():
         run_monitor()
     elif args.command == "sender":
         run_gpu_sender()
+    elif args.command == "web":
+        run_web(args.port)
     else:
         parser.print_help()
 

@@ -8,7 +8,11 @@ from streamlit_javascript import st_javascript
 from user_agents import parse
 
 from contrail.webapp import webapp_realtime, webapp_history, HomePage
+from contrail.webapp.text_status import install_gpu_status_route
 from contrail.utils.config import enabled_features, devices_config, PageConfig
+
+
+install_gpu_status_route()
 
 
 class DevicePage:
