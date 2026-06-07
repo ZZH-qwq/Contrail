@@ -72,7 +72,11 @@ def device_status(device, timestamp: str):
     if gpu_current_df.empty:
         st.subheader(name)
         st.write(
-            "<hr style='margin: 10px 0 5px 0;'><span style='color: orange;'>无法读取 GPU 数据</span>",
+            "<hr style='margin: 4px 0 12px 0; height: 10px;'>",
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "<span style='color: orange;'>无法读取 GPU 数据</span>",
             unsafe_allow_html=True,
         )
         return None
@@ -96,10 +100,10 @@ def device_card_pc(device, pages):
         current_timestamp = device_status(device, dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
 
     if not enabled_features.history_only:
-        cont2.page_link(pages[device.hostname][0], label="实时状态", use_container_width=True)
-        cont2.page_link(pages[device.hostname][1], label="历史信息", use_container_width=True)
+        cont2.page_link(pages[device.hostname][0], label="实时状态", width="stretch")
+        cont2.page_link(pages[device.hostname][1], label="历史信息", width="stretch")
     else:
-        cont2.page_link(pages[device.hostname][0], label="历史信息", use_container_width=True)
+        cont2.page_link(pages[device.hostname][0], label="历史信息", width="stretch")
 
     return current_timestamp
 
@@ -109,10 +113,10 @@ def device_card_mobile(device, pages):
 
     if not enabled_features.history_only:
         col1, col2 = st.columns(2)
-        col1.page_link(pages[device.hostname][0], label="实时状态", use_container_width=True)
-        col2.page_link(pages[device.hostname][1], label="历史信息", use_container_width=True)
+        col1.page_link(pages[device.hostname][0], label="实时状态", width="stretch")
+        col2.page_link(pages[device.hostname][1], label="历史信息", width="stretch")
     else:
-        st.page_link(pages[device.hostname][0], label="历史信息", use_container_width=True)
+        st.page_link(pages[device.hostname][0], label="历史信息", width="stretch")
 
     return current_timestamp
 
@@ -137,7 +141,9 @@ def webapp_homepage(pages, configs, md_content=None):
         }
         /* 主页 - 标注 */
         .stColumn div[data-testid="stCaptionContainer"] > p {
-            margin-bottom: 10px;
+            height: 1.2em;
+            margin-top: -0.4em;
+            margin-bottom: 1.2em;
         }
         /* 主页 - 设备操作按钮 */
         .stColumn a[data-testid="stPageLink-NavLink"] {
@@ -150,8 +156,7 @@ def webapp_homepage(pages, configs, md_content=None):
         }
         /* column 修改 */
         @media (max-width: 640px) {
-            .stColumn .stColunm,
-            .st-emotion-cache-1eoatk1 {
+            .stColumn .stColumn {
                 min-width: calc(50% - 1rem) !important;
             }
         }
@@ -206,8 +211,8 @@ def webapp_homepage(pages, configs, md_content=None):
 
         with cols[0]:
             col1, col2 = st.columns(2)
-            col1.page_link(pages["AI4S"][0], label="AI4S 节点", use_container_width=True)
-            col2.page_link(pages["AI4S"][1], label="AI4S 任务", use_container_width=True)
+            col1.page_link(pages["AI4S"][0], label="AI4S 节点", width="stretch")
+            col2.page_link(pages["AI4S"][1], label="AI4S 任务", width="stretch")
         with cols[1]:
             if ai4s_result and ai4s_result["state"] == "success":
                 # 显示任务数量
@@ -221,4 +226,4 @@ def webapp_homepage(pages, configs, md_content=None):
 
         stcol = st.columns([1, 3])
 
-        stcol[0].page_link(pages["Info"][0], label="用户信息查询", use_container_width=True)
+        stcol[0].page_link(pages["Info"][0], label="用户信息查询", width="stretch")

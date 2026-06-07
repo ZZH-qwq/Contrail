@@ -27,7 +27,7 @@ def webapp_fee():
     start_date = col1.date_input("开始日期", value=min_date, key="fee_start_date")
     end_date = col2.date_input("结束日期", value=max_date, key="fee_end_date")
 
-    reset.button("重置", use_container_width=True, on_click=reset_button)
+    reset.button("重置", width="stretch", on_click=reset_button)
 
     # 确保用户输入的时间范围有效
     assert isinstance(start_date, dt.date)

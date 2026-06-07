@@ -77,7 +77,7 @@ def render_detail_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
         .add_params(nearest)
     )
     chart = alt.layer(line_util, points_util, rules_util)
-    st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
+    st.altair_chart(chart, width="stretch")  # pyright: ignore[reportArgumentType]
 
     st.subheader("显存用量 GB")
     base_mem = alt.Chart(gpu_memory_df).transform_calculate(memory="datum.used_memory / 0x40000000").encode(axis_x)
@@ -96,7 +96,7 @@ def render_detail_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
         .add_params(nearest)
     )
     chart = alt.layer(line_mem, points_mem, rules_mem)
-    st.altair_chart(chart, use_container_width=True)  # pyright: ignore[reportArgumentType]
+    st.altair_chart(chart, width="stretch")  # pyright: ignore[reportArgumentType]
 
 
 def render_user_view(start_time, end_time, DB_PATH, axis_x):
@@ -125,7 +125,7 @@ def render_user_view(start_time, end_time, DB_PATH, axis_x):
             axis_x,
             alt.Y("gpu_utilization:Q").title(None),
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.subheader("用户显存用量 GB")
@@ -139,7 +139,7 @@ def render_user_view(start_time, end_time, DB_PATH, axis_x):
             axis_x,
             alt.Y("memory:Q").title(None),
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -165,7 +165,7 @@ def render_summary_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
             alt.Y("gpu_utilization:Q").title(None).scale(alt.Scale(domain=[0, 100 * N_GPU])),
             alt.FillOpacityValue(0.5),
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.subheader("总显存用量 GB")
@@ -179,7 +179,7 @@ def render_summary_view(start_time, end_time, DB_PATH, axis_x, PARAMS):
             alt.Y("memory:Q").title(None).scale(alt.Scale(domain=[0, GMEM * N_GPU])),
             alt.FillOpacityValue(0.5),
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -202,14 +202,16 @@ def webapp_realtime(hostname="Virgo", db_path="data/gpu_history_virgo.db", confi
 
     st.title(f"{hostname}: 实时状态")
 
-    col1, col2 = st.columns([4, 12], vertical_alignment="center")
-    upd_container = col2.empty()
+    status_content = st.container(horizontal=True, vertical_alignment="center")
 
     # 刷新次数计数器
     if "autorefresh" not in st.session_state:
         st.session_state["autorefresh"] = True
-    auto_refresh = col1.checkbox("自动刷新", key="autorefresh")
+    auto_refresh = status_content.checkbox("自动刷新", key="autorefresh")
     refresh_interval = 1 if auto_refresh else None
+
+    status_content.space(size="medium")
+    upd_container = status_content.empty()
 
     monitor_key = f"gpu_monitor_count_{hostname}"
     if monitor_key not in st.session_state:

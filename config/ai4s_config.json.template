@@ -18,7 +18,10 @@
         "status": {
             "url": "http://aiplatform.ai4s.example.com/bml/project/model-train/notebook/org-123qwe/proj-456rty"
             "scheduled": true,
-            "interval": 5
+            "interval": 5,
+            "params": {
+                "resource_name": "Default Resource Pool"
+            }
         }
     }
 }

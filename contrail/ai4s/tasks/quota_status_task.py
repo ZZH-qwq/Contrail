@@ -32,17 +32,23 @@ class QuotaStatusTask(BaseTask):
         time.sleep(1)
         self.screenshot(driver)
 
+        self._create_notebook_task(driver)
+
+        target_resource = self._capture_target_resource(driver)
+
         self._set_task_resource(driver)
 
         json_data = self._capture_status_json(driver)
-        if json_data is None:
+        if json_data is None or "result" not in json_data:
             logger.error("Failed to retrieve JSON data for task status")
             return None
 
+        json_data["resource_info"] = target_resource
+
         return json_data
 
-    def _set_task_resource(self, driver) -> None:
-        logger.info("Setting task resource configuration")
+    def _create_notebook_task(self, driver) -> None:
+        logger.info("Creating new notebook task")
         try:
             resource_dropdown = driver.find_element(
                 By.CSS_SELECTOR, ".ant-drawer-body #computeResourceId .ant-select-selection"
@@ -50,7 +56,12 @@ class QuotaStatusTask(BaseTask):
             resource_dropdown.click()
             time.sleep(0.5)
             self.screenshot(driver)
+        except Exception as exc:
+            logger.error(f"Error creating notebook task: {exc}")
 
+    def _set_task_resource(self, driver) -> None:
+        logger.info("Setting task resource configuration")
+        try:
             actions = ActionChains(driver)
             actions.send_keys(Keys.ENTER)
             actions.perform()
@@ -58,6 +69,26 @@ class QuotaStatusTask(BaseTask):
             self.screenshot(driver)
         except Exception as exc:
             logger.error(f"Error setting task resource configuration: {exc}")
+
+    def _capture_target_resource(self, driver) -> Optional[list]:
+        def matcher(response: dict) -> bool:
+            url = response.get("url", "")
+            mime = response.get("mimeType", "")
+            return "compute-resource/list" in url and "application/json" in mime
+
+        payloads = capture_responses_json(driver, matcher=matcher, timeout=10, max_count=1)
+        resource_list = payloads[0] if payloads else None
+        if resource_list is None or "page" not in resource_list:
+            logger.error("Resource list JSON not found or invalid")
+            return None
+
+        for resource in resource_list["page"].get("result", []):
+            if "name" in resource and self.config.tasks.status.params.get("resource_name", "") == resource["name"]:
+                logger.info(f"Found target resource: {resource['name']}")
+                return resource
+
+        logger.error("Target resource not found in resource list")
+        return None
 
     def _capture_status_json(self, driver) -> Optional[dict]:
         def matcher(response: dict) -> bool:
