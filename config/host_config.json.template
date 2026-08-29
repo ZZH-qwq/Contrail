@@ -40,7 +40,8 @@
             "ai4s": false,
             "user_info": false,
             "name_dict": false,
-            "history_only": false
+            "history_only": false,
+            "gpu_status_endpoint": false
         },
         "assets": {
             "homepage_md": "resource/homepage_info.md",

@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 import tornado.web
 
-from contrail.utils.config import PageConfig, devices_config, query_server_username
+from contrail.utils.config import PageConfig, devices_config, enabled_features, query_server_username
 
 
 BYTES_PER_GIB = 1024**3
@@ -148,6 +148,9 @@ class GpuStatusHandler(tornado.web.RequestHandler):
 
 
 def install_gpu_status_route() -> None:
+    if not enabled_features.gpu_status_endpoint:
+        return
+
     from streamlit import config as st_config
     from streamlit.web.server import Server
     from streamlit.web.server.server_util import make_url_path_regex
