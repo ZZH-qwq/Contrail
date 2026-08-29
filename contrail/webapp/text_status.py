@@ -7,10 +7,7 @@ from pathlib import Path
 from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
-try:
-    import tornado.web
-except ImportError:  # pragma: no cover - web extra is required at runtime.
-    tornado = None
+import tornado.web
 
 from contrail.utils.config import PageConfig, devices_config, query_server_username
 
@@ -144,16 +141,13 @@ def build_status_dict(configs: Mapping[str, dict[str, Any]] | None = None) -> di
     return {"updated_at": updated_at, "servers": servers}
 
 
-class GpuStatusHandler(tornado.web.RequestHandler if tornado else object):
+class GpuStatusHandler(tornado.web.RequestHandler):
     def get(self) -> None:
         self.set_header("Content-Type", "application/json; charset=utf-8")
         self.finish(json.dumps(build_status_dict(), ensure_ascii=False))
 
 
 def install_gpu_status_route() -> None:
-    if tornado is None:
-        raise RuntimeError("The /gpu-status endpoint requires the web dependencies.")
-
     from streamlit import config as st_config
     from streamlit.web.server import Server
     from streamlit.web.server.server_util import make_url_path_regex

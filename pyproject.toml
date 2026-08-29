@@ -29,6 +29,7 @@ web = [
     "streamlit==1.52.2",
     "streamlit-autorefresh",
     "streamlit-javascript",
+    "tornado!=6.5.0,<7,>=6.0.3",
     "user-agents",
 ]
 
