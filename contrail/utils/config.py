@@ -11,6 +11,7 @@ class EnabledFeature:
     user_info: bool = False
     name_dict: bool = False
     history_only: bool = False
+    gpu_status_endpoint: bool = False
 
 
 @dataclass

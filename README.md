@@ -161,8 +161,10 @@ pip install -e .
 启动 web 应用：
 
 ```bash
-streamlit run webapp.py --server.port 3333
+contrail web --port 3333
 ```
+
+结构化 GPU 状态可通过 `curl http://localhost:3333/gpu-status` 获取（需在 `config/host_config.json` 中将 `webapp.features.gpu_status_endpoint` 设置为 `true`）。
 
 启动监控：
 

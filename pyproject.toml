@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "contrail"
-version = "26.1.0"
+version = "26.8.0"
 description = "Contrail project"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,6 +29,7 @@ web = [
     "streamlit==1.52.2",
     "streamlit-autorefresh",
     "streamlit-javascript",
+    "tornado!=6.5.0,<7,>=6.0.3",
     "user-agents",
 ]
 

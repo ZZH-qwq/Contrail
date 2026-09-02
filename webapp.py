@@ -7,7 +7,9 @@ from loguru import logger
 from streamlit_javascript import st_javascript
 from user_agents import parse
 
-from contrail.webapp import webapp_realtime, webapp_history, HomePage
+from contrail.webapp.history import webapp_history
+from contrail.webapp.realtime import webapp_realtime
+from contrail.webapp.homepage import HomePage
 from contrail.utils.config import enabled_features, devices_config, PageConfig
 
 
@@ -125,8 +127,7 @@ def main():
     home_p = st.Page(HomePage(pages, device_conf), title="Contrail 主页", url_path="home")
     pages["Home"].append(home_p)
 
-    st.html(
-        """<style>
+    st.html("""<style>
         /* auto-refresh, javascript 隐藏 */
         .stElementContainer:has(.stCustomComponentV1[title="streamlit_autorefresh.st_autorefresh"], .stCustomComponentV1[title="streamlit_javascript.streamlit_javascript"]),
         .stElementContainer:has(.stHtml) {
@@ -175,8 +176,7 @@ def main():
         div[data-testid="stPopoverBody"] {
             padding: calc(-1px + 1rem) !important;
         }
-        </style>"""
-    )
+        </style>""")
 
     ua_string = st_javascript("""window.navigator.userAgent;""", key="ua_string")
     user_agent = parse(ua_string) if ua_string else None
